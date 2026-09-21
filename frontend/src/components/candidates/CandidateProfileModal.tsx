@@ -41,6 +41,73 @@ export function CandidateProfileModal({
 }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'resume' | 'workflow' | 'calls' | 'interviews' | 'timeline'>('overview');
   const [playingCallId, setPlayingCallId] = useState<string | null>(null);
+  const [timelineData, setTimelineData] = useState<any>(null);
+  const [loadingTimeline, setLoadingTimeline] = useState<boolean>(false);
+  const [rescheduleStepId, setRescheduleStepId] = useState<string | null>(null);
+  const [newScheduleTime, setNewScheduleTime] = useState<string>('');
+
+  const fetchTimeline = async () => {
+    try {
+      setLoadingTimeline(true);
+      const res = await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/steps-timeline`);
+      if (res.ok) {
+        const data = await res.json();
+        setTimelineData(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'workflow') {
+      fetchTimeline();
+    }
+  }, [activeTab]);
+
+  const handleRunNow = async (stepId: string) => {
+    try {
+      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/run-now`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_id: stepId })
+      });
+      fetchTimeline();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSkip = async (stepId: string) => {
+    try {
+      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/skip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_id: stepId })
+      });
+      fetchTimeline();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRescheduleSubmit = async (stepId: string) => {
+    if (!newScheduleTime) return;
+    try {
+      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step_id: stepId, scheduled_at: newScheduleTime })
+      });
+      setRescheduleStepId(null);
+      fetchTimeline();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
@@ -234,55 +301,200 @@ export function CandidateProfileModal({
             </div>
           )}
 
-          {/* TAB 3: WORKFLOW PROGRESS STEPPER */}
+          {/* TAB 3: WORKFLOW PROGRESS STEPPER & HR MANUAL SCHEDULER */}
           {activeTab === 'workflow' && (
             <div className="space-y-6">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider text-indigo-400">
-                Company Hiring Process Progress
-              </h3>
-              <div className="space-y-4">
-                {(candidate.stageProgress || []).map((sp: any, idx: number) => (
-                  <div
-                    key={sp.stage}
-                    className={`flex items-center gap-4 p-4 rounded-xl border transition ${
-                      sp.status === 'completed'
-                        ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
-                        : sp.status === 'current'
-                        ? 'bg-indigo-950/40 border-indigo-700/60 text-indigo-200 shadow-md shadow-indigo-950/50'
-                        : 'bg-slate-900/40 border-slate-800 text-slate-500'
-                    }`}
-                  >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider text-indigo-400">
+                    Candidate Hiring Workflow Schedule & Progress
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">HR Manual Control & Single Source of Truth Engine Status</p>
+                </div>
+                {loadingTimeline && (
+                  <span className="text-xs text-indigo-400 animate-pulse font-semibold">Loading engine schedule...</span>
+                )}
+              </div>
+
+              {timelineData?.steps && timelineData.steps.length > 0 ? (
+                <div className="space-y-4">
+                  {timelineData.steps.map((st: any, idx: number) => {
+                    const isCompleted = st.status === 'COMPLETED';
+                    const isReady = st.status === 'READY';
+                    const isWaitingHuman = st.status === 'WAITING_FOR_HUMAN';
+                    const isSkipped = st.status === 'SKIPPED';
+                    const isFailed = st.status === 'FAILED';
+
+                    return (
+                      <div
+                        key={st.step_id || idx}
+                        className={`p-4 rounded-xl border transition space-y-3 ${
+                          isCompleted
+                            ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
+                            : isReady
+                            ? 'bg-indigo-950/40 border-indigo-700/60 text-indigo-200 shadow-md shadow-indigo-950/50'
+                            : isWaitingHuman
+                            ? 'bg-amber-950/30 border-amber-700/60 text-amber-200'
+                            : isSkipped
+                            ? 'bg-slate-900/60 border-slate-800 text-slate-400 opacity-75'
+                            : isFailed
+                            ? 'bg-red-950/30 border-red-800/50 text-red-300'
+                            : 'bg-slate-900/40 border-slate-800 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                                isCompleted
+                                  ? 'bg-emerald-500 text-slate-950'
+                                  : isReady
+                                  ? 'bg-indigo-500 text-white animate-pulse'
+                                  : isWaitingHuman
+                                  ? 'bg-amber-500 text-slate-950'
+                                  : isFailed
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {isCompleted ? <CheckCircle2 size={16} /> : idx + 1}
+                            </div>
+                            <div>
+                              <p className="font-bold text-sm text-white flex items-center gap-2">
+                                {st.step_name}
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                                  {st.schedule_type}
+                                </span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
+                                  Executor: {st.executor}
+                                </span>
+                              </p>
+                              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-3">
+                                {st.scheduled_at && (
+                                  <span>Scheduled: <strong className="text-slate-200">{new Date(st.scheduled_at).toLocaleString()}</strong></span>
+                                )}
+                                {st.completed_at && (
+                                  <span>Completed: <strong className="text-emerald-400">{new Date(st.completed_at).toLocaleString()}</strong></span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-[11px] font-extrabold px-2.5 py-1 rounded border ${
+                                isCompleted
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                  : isReady
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                  : isWaitingHuman
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                  : isSkipped
+                                  ? 'bg-slate-800 text-slate-400 border-slate-700'
+                                  : isFailed
+                                  ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                              }`}
+                            >
+                              {st.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* HR Manual Controls Toolbar */}
+                        {!isCompleted && !isSkipped && (
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleRunNow(st.step_id)}
+                                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-semibold text-[11px] flex items-center gap-1 transition shadow-xs"
+                              >
+                                <Play size={11} /> Run Now
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setRescheduleStepId(rescheduleStepId === st.step_id ? null : st.step_id);
+                                  setNewScheduleTime(st.scheduled_at ? new Date(st.scheduled_at).toISOString().slice(0, 16) : '');
+                                }}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded font-semibold text-[11px] flex items-center gap-1 transition"
+                              >
+                                <Clock size={11} /> Reschedule
+                              </button>
+
+                              {st.allow_skip !== false && (
+                                <button
+                                  onClick={() => handleSkip(st.step_id)}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded font-semibold text-[11px] flex items-center gap-1 transition"
+                                >
+                                  Skip Step
+                                </button>
+                              )}
+                            </div>
+
+                            {rescheduleStepId === st.step_id && (
+                              <div className="flex items-center gap-2 bg-slate-950 p-2 rounded-lg border border-indigo-700">
+                                <input
+                                  type="datetime-local"
+                                  value={newScheduleTime}
+                                  onChange={e => setNewScheduleTime(e.target.value)}
+                                  className="bg-slate-900 border border-slate-700 text-white text-xs rounded px-2 py-1"
+                                />
+                                <button
+                                  onClick={() => handleRescheduleSubmit(st.step_id)}
+                                  className="px-2 py-1 bg-indigo-600 text-white font-semibold rounded text-xs"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(candidate.stageProgress || []).map((sp: any, idx: number) => (
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      key={sp.stage}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition ${
                         sp.status === 'completed'
-                          ? 'bg-emerald-500 text-slate-950'
+                          ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-300'
                           : sp.status === 'current'
-                          ? 'bg-indigo-500 text-white animate-pulse'
-                          : 'bg-slate-800 text-slate-400'
+                          ? 'bg-indigo-950/40 border-indigo-700/60 text-indigo-200 shadow-md shadow-indigo-950/50'
+                          : 'bg-slate-900/40 border-slate-800 text-slate-500'
                       }`}
                     >
-                      {sp.status === 'completed' ? <CheckCircle2 size={16} /> : idx + 1}
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                          sp.status === 'completed'
+                            ? 'bg-emerald-500 text-slate-950'
+                            : sp.status === 'current'
+                            ? 'bg-indigo-500 text-white animate-pulse'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {sp.status === 'completed' ? <CheckCircle2 size={16} /> : idx + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{sp.stage}</p>
+                        <p className="text-xs text-slate-400">
+                          {sp.status === 'completed'
+                            ? `Completed on ${sp.completedAt || 'Recently'}`
+                            : sp.status === 'current'
+                            ? 'In Progress (Active Stage)'
+                            : 'Pending previous step completion'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm">{sp.stage}</p>
-                      <p className="text-xs text-slate-400">
-                        {sp.status === 'completed'
-                          ? `Completed on ${sp.completedAt || 'Recently'}`
-                          : sp.status === 'current'
-                          ? 'In Progress (Active Stage)'
-                          : 'Pending previous step completion'}
-                      </p>
-                    </div>
-                    {sp.status === 'current' && (
-                      <span className="text-[11px] font-bold px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        ACTIVE STEP
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
 
           {/* TAB 4: AI HR CALLS */}
           {activeTab === 'calls' && (

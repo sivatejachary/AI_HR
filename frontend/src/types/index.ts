@@ -128,6 +128,12 @@ export interface WorkflowStep {
   automation: AutomationLevel;
   durationMinutes?: number;
   isRequired: boolean;
+  scheduleType?: 'IMMEDIATE' | 'FIXED_TIME' | 'RELATIVE';
+  fixedTimestamp?: string;
+  relativeDelayMinutes?: number;
+  executor?: 'HUMAN_HR' | 'SYSTEM' | 'N8N' | 'ELEVENLABS' | 'AI';
+  requiresApproval?: boolean;
+  allowSkip?: boolean;
   questions?: Array<{ id: string; question: string; isRequired: boolean }>;
   passingScore?: number;
   conditions?: WorkflowCondition[];

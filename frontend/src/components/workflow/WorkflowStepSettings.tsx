@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { WorkflowStep, StepOwner, AutomationLevel, WorkflowCondition } from '../../types';
-import { Sliders, Trash2, Plus, Settings2, HelpCircle, Bell, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Sliders, Trash2, Plus, Settings2, HelpCircle, Bell, ArrowRight, ShieldCheck, Calendar, Clock, UserCheck } from 'lucide-react';
 
 interface Props {
   step: WorkflowStep | null;
@@ -133,6 +133,94 @@ export function WorkflowStepSettings({ step, onUpdateStep, onDeleteStep }: Props
             </div>
           </div>
         </div>
+
+        {/* Step Scheduling & Execution Engine Control */}
+        <div className="space-y-3.5 pt-2">
+          <h5 className="font-bold text-gray-900 border-b border-gray-100 pb-1.5 flex items-center gap-1.5 text-xs">
+            <Calendar size={14} className="text-blue-600" /> Step Scheduling & Execution (HR Control)
+          </h5>
+
+          <div>
+            <label className="font-semibold text-gray-700 block mb-1">Schedule Timing Rule</label>
+            <select
+              value={step.scheduleType || 'IMMEDIATE'}
+              onChange={e => handleFieldChange('scheduleType', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-gray-900 text-xs bg-white focus:ring-2 focus:ring-blue-600 outline-none font-medium"
+            >
+              <option value="IMMEDIATE">IMMEDIATE — Run immediately when reached</option>
+              <option value="RELATIVE">RELATIVE — Delay after previous step completes</option>
+              <option value="FIXED_TIME">FIXED TIME — Execute on fixed specific Date & Time</option>
+            </select>
+          </div>
+
+          {(step.scheduleType === 'RELATIVE') && (
+            <div className="p-3 bg-blue-50/60 border border-blue-200 rounded-lg space-y-2">
+              <label className="font-semibold text-gray-800 block text-xs">Relative Delay (Minutes)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 1440 for 1 day"
+                  value={step.relativeDelayMinutes || 0}
+                  onChange={e => handleFieldChange('relativeDelayMinutes', parseInt(e.target.value) || 0)}
+                  className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 bg-white"
+                />
+                <span className="text-gray-600 font-medium text-xs">mins ({((step.relativeDelayMinutes || 0)/1440).toFixed(1)} days)</span>
+              </div>
+            </div>
+          )}
+
+          {(step.scheduleType === 'FIXED_TIME') && (
+            <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-lg space-y-2">
+              <label className="font-semibold text-gray-800 block text-xs">Fixed Timestamp (UTC / Local)</label>
+              <input
+                type="datetime-local"
+                value={step.fixedTimestamp ? new Date(step.fixedTimestamp).toISOString().slice(0, 16) : ''}
+                onChange={e => handleFieldChange('fixedTimestamp', e.target.value ? new Date(e.target.value).toISOString() : undefined)}
+                className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 bg-white"
+              />
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="font-semibold text-gray-700 block mb-1">Step Executor</label>
+              <select
+                value={step.executor || 'AI'}
+                onChange={e => handleFieldChange('executor', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-gray-900 text-xs bg-white focus:ring-2 focus:ring-blue-600 outline-none font-medium"
+              >
+                <option value="AI">AI HR Agent</option>
+                <option value="HUMAN_HR">Human HR Admin</option>
+                <option value="N8N">n8n Automation</option>
+                <option value="ELEVENLABS">ElevenLabs Voice AI</option>
+              </select>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <label className="flex items-center gap-2 text-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={step.requiresApproval ?? false}
+                  onChange={e => handleFieldChange('requiresApproval', e.target.checked)}
+                  className="rounded text-blue-700"
+                />
+                <span className="font-medium text-xs">Requires HR Gate</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={step.allowSkip ?? true}
+                  onChange={e => handleFieldChange('allowSkip', e.target.checked)}
+                  className="rounded text-blue-700"
+                />
+                <span className="font-medium text-xs">Allow HR Skip</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
 
         {/* HR Control over Automation */}
         <div className="space-y-3.5 pt-2">

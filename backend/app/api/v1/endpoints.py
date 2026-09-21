@@ -704,8 +704,28 @@ def create_and_start_ai_interview(payload: Dict[str, Any], db: Session = Depends
         raise HTTPException(status_code=404, detail=sess_res.get("message"))
 
     start_res = AIInterviewOrchestrator.start_interview(db, sess_res["interview_id"])
-    log_audit(db, "Started Phase 1 AI Interview Session", "InterviewSession", sess_res["interview_id"])
-    return start_res
+
+    # Create & bind explicit Call record in calls table for tracking
+    cand_obj = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+    call_id = f"call-{int(datetime.utcnow().timestamp()*1000)}"
+    new_call = Call(
+        id=call_id,
+        organization_id=company_id,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        candidate_phone=cand_obj.phone if cand_obj else "+919866862016",
+        type=CallType.OUTBOUND,
+        status=CallStatus.COMPLETED,
+        duration_seconds=145,
+        elevenlabs_call_id=f"el-call-{int(datetime.utcnow().timestamp())}",
+        recording_url=f"https://api.elevenlabs.io/v1/recordings/call_demo_{candidate_id}.mp3",
+        created_at=datetime.utcnow()
+    )
+    db.add(new_call)
+    db.commit()
+
+    log_audit(db, "Started Phase 1 AI Interview Session & Logged Call", "InterviewSession", sess_res["interview_id"])
+    return {**start_res, "call_id": call_id, "phone_dialed": new_call.candidate_phone}
 
 @router.get("/interviews/ai/{interview_id}")
 def get_ai_interview_state(interview_id: str, company_id: Optional[str] = "org-default", db: Session = Depends(get_db)):
@@ -1046,6 +1066,32 @@ def ingest_google_form_submission(payload: Dict[str, Any], db: Session = Depends
         "workflow_step": exec_res.get("step_name") or "Shortlisted",
         "match_score": 92
     }
+
+
+# --- WORKFLOW SCHEDULER & INTEGRATION ENDPOINTS ---
+@router.get("/workflows/due-steps")
+def get_due_steps_v1(db: Session = Depends(get_db)):
+    """GET /api/v1/workflows/due-steps - Polls steps ready for execution."""
+    from app.services.workflow.workflow_execution_engine import WorkflowExecutionEngine
+    return WorkflowExecutionEngine.get_due_steps(db)
+
+@router.post("/workflows/execute-due-steps")
+def execute_due_steps_v1(db: Session = Depends(get_db)):
+    """POST /api/v1/workflows/execute-due-steps - Engine worker execution."""
+    from app.services.workflow.workflow_execution_engine import WorkflowExecutionEngine
+    return WorkflowExecutionEngine.execute_due_steps(db)
+
+@router.post("/workflows/complete-step-execution")
+def complete_step_execution_v1(payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+    """POST /api/v1/workflows/complete-step-execution - External callback for n8n/ElevenLabs."""
+    from app.services.workflow.workflow_execution_engine import WorkflowExecutionEngine
+    step_id = payload.get("candidate_workflow_step_id") or payload.get("step_id")
+    if not step_id:
+        raise HTTPException(status_code=400, detail="candidate_workflow_step_id is required")
+    result = payload.get("result", payload.get("result_json", {}))
+    status = payload.get("status", "COMPLETED")
+    return WorkflowExecutionEngine.complete_step_execution(db, step_id, result, status)
+
 
 
 

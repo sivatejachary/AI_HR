@@ -89,6 +89,44 @@ def get_workflow_analytics_endpoint(workflow_id: str, db: Session = Depends(get_
     """
     return WorkflowExecutionEngine.get_workflow_analytics(db, workflow_id)
 
+@workflow_router.get("/due-steps")
+def get_due_steps_endpoint(db: Session = Depends(get_db)):
+    """
+    GET /api/workflows/due-steps
+    Returns all candidate workflow steps that are due for execution (scheduled_at <= now and status == READY).
+    Used by n8n or external schedulers.
+    """
+    return WorkflowExecutionEngine.get_due_steps(db)
+
+@workflow_router.post("/execute-due-steps")
+def execute_due_steps_endpoint(db: Session = Depends(get_db)):
+    """
+    POST /api/workflows/execute-due-steps
+    Triggers engine worker to claim and execute all due steps.
+    """
+    return WorkflowExecutionEngine.execute_due_steps(db)
+
+@workflow_router.post("/complete-step-execution")
+def complete_step_execution_endpoint(
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/workflows/complete-step-execution
+    External integration callback (n8n, ElevenLabs, Webhook) posting step execution result.
+    """
+    step_id = payload.get("candidate_workflow_step_id") or payload.get("step_id")
+    if not step_id:
+        raise HTTPException(status_code=400, detail="candidate_workflow_step_id is required")
+
+    result = payload.get("result", payload.get("result_json", {}))
+    status = payload.get("status", "COMPLETED")
+
+    res = WorkflowExecutionEngine.complete_step_execution(db, step_id, result, status)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
 # --- 2. CANDIDATE WORKFLOW EXECUTION APIs ---
 
 @candidate_wf_router.post("/start")
@@ -123,6 +161,15 @@ def get_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)):
 
     return WorkflowExecutionEngine.get_current_step(db, cwf.id)
 
+@candidate_wf_router.get("/steps-timeline")
+@candidate_wf_router.get("/full-timeline")
+def get_candidate_step_timeline_endpoint(candidate_id: str, db: Session = Depends(get_db)):
+    """
+    GET /api/candidates/{candidate_id}/workflow/steps-timeline
+    Returns ordered timeline of all steps with schedule times, status, and execution results.
+    """
+    return WorkflowExecutionEngine.get_candidate_step_timeline(db, candidate_id)
+
 @candidate_wf_router.get("/timeline")
 def get_candidate_workflow_timeline(candidate_id: str, db: Session = Depends(get_db)):
     """
@@ -133,6 +180,75 @@ def get_candidate_workflow_timeline(candidate_id: str, db: Session = Depends(get
         "candidate_id": candidate_id,
         "timeline": WorkflowExecutionEngine.get_workflow_timeline(db, candidate_id)
     }
+
+@candidate_wf_router.post("/run-now")
+def run_now_candidate_step(
+    candidate_id: str,
+    payload: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/candidates/{candidate_id}/workflow/run-now
+    HR Manual Control: Immediately forces step execution now.
+    """
+    cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.candidate_id == candidate_id).order_by(CandidateWorkflow.started_at.desc()).first()
+    if not cwf:
+        raise HTTPException(status_code=404, detail="Candidate workflow not found")
+
+    step_id = payload.get("step_id") or payload.get("stepId")
+    return WorkflowExecutionEngine.run_now(db, cwf.id, step_id)
+
+@candidate_wf_router.post("/reschedule")
+def reschedule_candidate_step(
+    candidate_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/candidates/{candidate_id}/workflow/reschedule
+    HR Manual Control: Changes scheduled_at time for a candidate step.
+    """
+    cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.candidate_id == candidate_id).order_by(CandidateWorkflow.started_at.desc()).first()
+    if not cwf:
+        raise HTTPException(status_code=404, detail="Candidate workflow not found")
+
+    step_id = payload.get("step_id") or payload.get("stepId")
+    if not step_id:
+        raise HTTPException(status_code=400, detail="step_id is required")
+
+    sched_str = payload.get("scheduled_at") or payload.get("scheduledAt")
+    if not sched_str:
+        raise HTTPException(status_code=400, detail="scheduled_at is required")
+
+    try:
+        new_dt = datetime.fromisoformat(sched_str.replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_at ISO format timestamp")
+
+    return WorkflowExecutionEngine.reschedule_step(db, cwf.id, step_id, new_dt)
+
+@candidate_wf_router.post("/skip")
+def skip_candidate_step(
+    candidate_id: str,
+    payload: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/candidates/{candidate_id}/workflow/skip
+    HR Manual Control: Skips candidate step and advances to next step.
+    """
+    cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.candidate_id == candidate_id).order_by(CandidateWorkflow.started_at.desc()).first()
+    if not cwf:
+        raise HTTPException(status_code=404, detail="Candidate workflow not found")
+
+    step_id = payload.get("step_id") or payload.get("stepId")
+    user_id = payload.get("user_id", "hr_admin")
+    reason = payload.get("reason", "Skipped manually by HR")
+
+    res = WorkflowExecutionEngine.skip_step(db, cwf.id, step_id, user_id, reason)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
 
 @candidate_wf_router.post("/pause")
 def pause_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)):
@@ -156,8 +272,30 @@ def resume_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Candidate workflow not found")
     return WorkflowExecutionEngine.resume_workflow(db, cwf.id)
 
+@candidate_wf_router.post("/cancel")
+def cancel_candidate_workflow(
+    candidate_id: str,
+    payload: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/candidates/{candidate_id}/workflow/cancel
+    HR Manual Control: Cancels candidate workflow execution.
+    """
+    cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.candidate_id == candidate_id).order_by(CandidateWorkflow.started_at.desc()).first()
+    if not cwf:
+        raise HTTPException(status_code=404, detail="Candidate workflow not found")
+
+    user_id = payload.get("user_id", "hr_admin")
+    reason = payload.get("reason", "Cancelled by HR Admin")
+    return WorkflowExecutionEngine.cancel_workflow(db, cwf.id, user_id, reason)
+
 @candidate_wf_router.post("/retry")
-def retry_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)):
+def retry_candidate_workflow(
+    candidate_id: str,
+    payload: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db)
+):
     """
     POST /api/candidates/{candidate_id}/workflow/retry
     Resets failed step and retries execution.
@@ -165,7 +303,9 @@ def retry_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)):
     cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.candidate_id == candidate_id).order_by(CandidateWorkflow.started_at.desc()).first()
     if not cwf:
         raise HTTPException(status_code=404, detail="Candidate workflow not found")
-    return WorkflowExecutionEngine.retry_step(db, cwf.id)
+
+    step_id = payload.get("step_id") or payload.get("stepId")
+    return WorkflowExecutionEngine.retry_step(db, cwf.id, step_id)
 
 @candidate_wf_router.post("/approve")
 def approve_candidate_step(
@@ -230,4 +370,5 @@ def complete_candidate_workflow(candidate_id: str, db: Session = Depends(get_db)
     if not cwf:
         raise HTTPException(status_code=404, detail="Candidate workflow not found")
 
-    return WorkflowExecutionEngine.move_to_next_step(db, cwf.id, hr_decision="APPROVE")
+    return WorkflowExecutionEngine.advance_to_next_step(db, cwf.id, cwf.current_step_id)
+

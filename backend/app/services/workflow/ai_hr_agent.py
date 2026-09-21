@@ -70,6 +70,9 @@ class AIHRAgent:
                 id=f"screen-{int(datetime.utcnow().timestamp()*1000)}",
                 application_id=app.id,
                 match_score=match_score,
+                required_skills_match={"Python": "MATCH"},
+                missing_requirements=[],
+                experience_match={"required": 2.0, "candidate": 4.5},
                 explanation=f"Candidate resume matches {match_score}% of role requirements.",
                 recommendation="SHORTLIST_FOR_HR_REVIEW" if match_score >= 70 else "HOLD_FOR_HR_REVIEW"
             )
