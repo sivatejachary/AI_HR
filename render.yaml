@@ -20,9 +20,9 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         value: 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
       - key: GOOGLE_REDIRECT_URI
-        value: https://recruitment-pro-backend.onrender.com/api/v1/integrations/google/callback
+        value: https://ai-hrs.onrender.com/api/v1/integrations/google/callback
       - key: BACKEND_PUBLIC_URL
-        value: https://recruitment-pro-backend.onrender.com
+        value: https://ai-hrs.onrender.com
       - key: FRONTEND_PUBLIC_URL
         value: http://localhost:3000
       - key: N8N_PUBLIC_URL

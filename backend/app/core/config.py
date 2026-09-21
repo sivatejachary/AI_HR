@@ -28,8 +28,8 @@ class Settings(BaseSettings):
         return url
 
     # Centralized URL Configuration (Internal vs. External)
-    BACKEND_PUBLIC_URL: str = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
-    BACKEND_INTERNAL_URL: str = os.getenv("BACKEND_INTERNAL_URL", "http://localhost:8000")
+    BACKEND_PUBLIC_URL: str = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
+    BACKEND_INTERNAL_URL: str = os.getenv("BACKEND_INTERNAL_URL", "https://ai-hrs.onrender.com")
     FRONTEND_PUBLIC_URL: str = os.getenv("FRONTEND_PUBLIC_URL", "http://localhost:3000")
 
     # n8n Automation Engine URLs
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Google Cloud OAuth 2.0 Credentials (Project feisty-legend-450615-n5)
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "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")
-    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/integrations/google/callback")
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "https://ai-hrs.onrender.com/api/v1/integrations/google/callback")
     GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "feisty-legend-450615-n5")
 
     # ElevenLabs Voice AI
