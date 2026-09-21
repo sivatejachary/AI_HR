@@ -4,10 +4,13 @@ from enum import Enum as PyEnum
 from typing import List, Optional, Dict, Any
 from sqlalchemy import (
     String, Integer, BigInteger, Boolean, DateTime, Date, Time, Text, ForeignKey,
-    Numeric, UniqueConstraint, Index
+    Numeric, UniqueConstraint, Index, JSON
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy.dialects.postgresql import UUID, JSONB as PG_JSONB, INET
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+# Cross-dialect JSONB definition (Native PostgreSQL JSONB with standard JSON fallback for SQLite/tests)
+JSONB = JSON().with_variant(PG_JSONB, "postgresql")
 
 class Base(DeclarativeBase):
     pass

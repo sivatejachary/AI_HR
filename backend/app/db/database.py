@@ -8,7 +8,7 @@ from app.core.config import settings
 
 logger = logging.getLogger("database")
 
-SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+SQLALCHEMY_DATABASE_URL = settings.SQLALCHEMY_DATABASE_URL
 
 if "postgresql" in SQLALCHEMY_DATABASE_URL:
     engine = create_engine(
