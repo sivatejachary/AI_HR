@@ -1,0 +1,29 @@
+# Render Infrastructure Blueprint for Recruitment Pro
+services:
+  - type: web
+    name: recruitment-pro-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: starter
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        value: postgresql+psycopg2://hrs_n0h4_user:tWDg43trYePf9cu9Alji634Dt3WL8YZD@dpg-daod0qf40ujc73er3040-a.singapore-postgres.render.com/hrs_n0h4?sslmode=require
+      - key: GOOGLE_CLIENT_ID
+        value: 186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com
+      - key: GOOGLE_CLIENT_SECRET
+        value: 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
+      - key: GOOGLE_REDIRECT_URI
+        value: https://recruitment-pro-backend.onrender.com/api/v1/integrations/google/callback
+      - key: BACKEND_PUBLIC_URL
+        value: https://recruitment-pro-backend.onrender.com
+      - key: FRONTEND_PUBLIC_URL
+        value: http://localhost:3000
+      - key: N8N_PUBLIC_URL
+        value: https://shivateja123.app.n8n.cloud

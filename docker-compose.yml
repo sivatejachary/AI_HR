@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recruitment-pro-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+psycopg2://hrs_n0h4_user:tWDg43trYePf9cu9Alji634Dt3WL8YZD@dpg-daod0qf40ujc73er3040-a.singapore-postgres.render.com/hrs_n0h4?sslmode=require
+      - BACKEND_INTERNAL_URL=http://localhost:8000
+      - BACKEND_PUBLIC_URL=http://localhost:8000
+      - FRONTEND_PUBLIC_URL=http://localhost:3000
+      - N8N_PUBLIC_URL=https://shivateja123.app.n8n.cloud
+      - GOOGLE_CLIENT_ID=186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/google/callback
+    restart: unless-stopped
