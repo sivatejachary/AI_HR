@@ -30,11 +30,11 @@ class Settings(BaseSettings):
     # Centralized URL Configuration (Internal vs. External)
     BACKEND_PUBLIC_URL: str = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
     BACKEND_INTERNAL_URL: str = os.getenv("BACKEND_INTERNAL_URL", "https://ai-hrs.onrender.com")
-    FRONTEND_PUBLIC_URL: str = os.getenv("FRONTEND_PUBLIC_URL", "http://localhost:3000")
+    FRONTEND_PUBLIC_URL: str = os.getenv("FRONTEND_PUBLIC_URL", "https://ai-hr-git-main-shiva-s-projects27.vercel.app")
 
     # n8n Automation Engine URLs
-    N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivateja123.app.n8n.cloud")
-    N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivateja123.app.n8n.cloud")
+    N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivaaiengineer.app.n8n.cloud")
+    N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivaaiengineer.app.n8n.cloud")
     N8N_INTEGRATION_API_KEY: str = os.getenv("N8N_INTEGRATION_API_KEY", "n8n_live_key_recruitmentpro_2026")
 
     # Google Cloud OAuth 2.0 Credentials (Project feisty-legend-450615-n5)
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # ElevenLabs Voice AI
     ELEVENLABS_API_KEY: Optional[str] = os.getenv("ELEVENLABS_API_KEY")
     ELEVENLABS_AGENT_ID: Optional[str] = os.getenv("ELEVENLABS_AGENT_ID")
-    ELEVENLABS_WEBHOOK_URL: str = os.getenv("ELEVENLABS_WEBHOOK_URL", "http://localhost:8000/api/v1/calls/elevenlabs-webhook")
+    ELEVENLABS_WEBHOOK_URL: str = os.getenv("ELEVENLABS_WEBHOOK_URL", "https://ai-hrs.onrender.com/api/v1/calls/elevenlabs-webhook")
 
     # Redis & Vector Search
     REDIS_URL: Optional[str] = os.getenv("REDIS_URL")
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
 
     # CORS Origins Configuration
     CORS_ORIGINS: List[str] = [
-        o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000").split(",") if o.strip()
+        o.strip() for o in os.getenv("CORS_ORIGINS", "https://ai-hr-git-main-shiva-s-projects27.vercel.app,https://ai-l6xls3vsq-shiva-s-projects27.vercel.app,https://ai-hr.vercel.app,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,*").split(",") if o.strip()
     ]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
