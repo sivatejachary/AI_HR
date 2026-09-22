@@ -47,21 +47,21 @@ LOG_LEVEL=INFO
 DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/recruitment_pro
 
 # Network & URL Routing Architecture
-BACKEND_INTERNAL_URL=http://localhost:8000
-BACKEND_PUBLIC_URL=http://localhost:8000
-FRONTEND_PUBLIC_URL=http://localhost:3000
-N8N_INTERNAL_URL=http://localhost:5678
+BACKEND_INTERNAL_URL=https://ai-hrs.onrender.com
+BACKEND_PUBLIC_URL=https://ai-hrs.onrender.com
+FRONTEND_PUBLIC_URL=https://ai-hr-nine.vercel.app
+N8N_INTERNAL_URL=https://shivateja123.app.n8n.cloud
 N8N_PUBLIC_URL=https://shivateja123.app.n8n.cloud
 
 # Security & CORS
 SECRET_KEY=dev_secret_key_change_in_production_32bytes_min
 ENCRYPTION_KEY=32_byte_secret_key_for_encrypting_tokens!
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ORIGINS=https://ai-hr-nine.vercel.app,https://ai-hrs.onrender.com
 
 # Google Workspace Integration
 GOOGLE_CLIENT_ID=186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=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
-GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/google/callback
+GOOGLE_CLIENT_SECRET=[REDACTED_SET_IN_ENV]
+GOOGLE_REDIRECT_URI=https://ai-hrs.onrender.com/api/v1/integrations/google/callback
 
 # ElevenLabs AI Voice
 ELEVENLABS_API_KEY=sk_dummy_key_for_testing
@@ -74,8 +74,8 @@ N8N_API_KEY=n8n_dummy_api_key
 ### Frontend (`frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=https://ai-hrs.onrender.com/api/v1
+NEXT_PUBLIC_BACKEND_URL=https://ai-hrs.onrender.com
 ```
 
 ---

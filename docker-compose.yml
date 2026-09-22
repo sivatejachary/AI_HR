@@ -11,12 +11,12 @@ services:
     environment:
       - PORT=8000
       - ENVIRONMENT=production
-      - DATABASE_URL=postgresql+psycopg2://hrs_n0h4_user:tWDg43trYePf9cu9Alji634Dt3WL8YZD@dpg-daod0qf40ujc73er3040-a.singapore-postgres.render.com/hrs_n0h4?sslmode=require
-      - BACKEND_INTERNAL_URL=http://localhost:8000
-      - BACKEND_PUBLIC_URL=http://localhost:8000
-      - FRONTEND_PUBLIC_URL=http://localhost:3000
+      - DATABASE_URL=${DATABASE_URL}
+      - BACKEND_INTERNAL_URL=https://ai-hrs.onrender.com
+      - BACKEND_PUBLIC_URL=https://ai-hrs.onrender.com
+      - FRONTEND_PUBLIC_URL=https://ai-hr-nine.vercel.app
       - N8N_PUBLIC_URL=https://shivateja123.app.n8n.cloud
-      - GOOGLE_CLIENT_ID=186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com
-      - GOOGLE_CLIENT_SECRET=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
-      - GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/google/callback
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=https://ai-hrs.onrender.com/api/v1/integrations/google/callback
     restart: unless-stopped

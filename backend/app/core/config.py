@@ -54,7 +54,7 @@ class Settings(BaseSettings):
 
     # CORS Origins Configuration
     CORS_ORIGINS: List[str] = [
-        o.strip() for o in os.getenv("CORS_ORIGINS", "https://ai-hr-nine.vercel.app,https://ai-hr-git-main-shiva-s-projects27.vercel.app,https://ai-l6xls3vsq-shiva-s-projects27.vercel.app,https://ai-hr.vercel.app,http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000,*").split(",") if o.strip()
+        o.strip() for o in os.getenv("CORS_ORIGINS", "https://ai-hr-nine.vercel.app,https://ai-hrs.onrender.com,https://ai-hr-git-main-shiva-s-projects27.vercel.app,*").split(",") if o.strip()
     ]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

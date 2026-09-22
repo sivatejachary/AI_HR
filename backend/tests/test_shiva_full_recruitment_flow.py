@@ -3,8 +3,8 @@ import json
 import urllib.request
 import urllib.error
 from datetime import datetime
-
-BASE_URL = "http://localhost:8000/api/v1"
+import os
+BASE_URL = os.getenv("API_BASE_URL", "https://ai-hrs.onrender.com/api/v1")
 
 def http_post(endpoint: str, payload: dict):
     url = f"{BASE_URL}{endpoint}"

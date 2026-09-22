@@ -9,8 +9,8 @@ Recruitment Pro integrates directly with Google Workspace REST APIs (Forms v1, C
 
 - **Google Cloud Project**: `feisty-legend-450615-n5`
 - **Client ID**: `186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com`
-- **Client Secret**: `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`
-- **Redirect URI**: `http://localhost:8000/api/v1/integrations/google/callback`
+- **Client Secret**: `[REDACTED_SET_IN_ENV]`
+- **Redirect URI**: `https://ai-hrs.onrender.com/api/v1/integrations/google/callback`
 
 ### Granted Scopes
 - `https://www.googleapis.com/auth/forms.body` (Create & edit Google Forms)

@@ -17,7 +17,7 @@ from app.models.domain import (
 from app.services.workflow.workflow_execution_engine import WorkflowExecutionEngine
 from app.services.evaluation.evaluation_service import EvaluationService
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
 
 def post(endpoint, data=None):
     url = f"{BASE_URL}{endpoint}"

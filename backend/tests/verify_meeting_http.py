@@ -1,8 +1,5 @@
-import json
-import urllib.request
-import urllib.error
-
-BASE_URL = "http://localhost:8000"
+import os
+BASE_URL = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
 
 def make_request(url, method="GET", body=None, headers=None):
     if headers is None:

@@ -4,7 +4,7 @@ import json
 import urllib.request
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
 
 def post(endpoint, data=None):
     url = f"{BASE_URL}{endpoint}"

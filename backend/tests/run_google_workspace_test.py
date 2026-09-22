@@ -4,7 +4,7 @@ import json
 import urllib.request
 from datetime import datetime
 
-API_BASE = "http://localhost:8000/api/v1"
+API_BASE = os.getenv("API_BASE_URL", "https://ai-hrs.onrender.com/api/v1")
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):

@@ -1,7 +1,8 @@
+import os
 import urllib.request
 import json
 
-BASE_URL = "http://localhost:8000/api/v1"
+BASE_URL = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com").rstrip("/") + "/api/v1"
 
 def generate_form():
     # 1. Create Real Job
@@ -55,7 +56,7 @@ def generate_form():
         "google_form_id": form_res.get("google_form_id"),
         "google_form_edit_url": form_res.get("google_form_url"),
         "google_form_responder_url": form_res.get("google_responder_url"),
-        "internal_apply_url": f"http://localhost:3000/apply/{job_id}",
+        "internal_apply_url": f"https://ai-hr-nine.vercel.app/apply/{job_id}",
         "status": form_res.get("status")
     }
 

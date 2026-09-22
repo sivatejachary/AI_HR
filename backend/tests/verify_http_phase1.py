@@ -1,7 +1,5 @@
-import urllib.request
-import json
-
-BASE_URL = "http://localhost:8000/api/v1/interviews/ai"
+import os
+BASE_URL = os.getenv("API_BASE_URL", "https://ai-hrs.onrender.com/api/v1") + "/interviews/ai"
 
 def post(endpoint, data=None):
     payload = json.dumps(data or {}).encode('utf-8')

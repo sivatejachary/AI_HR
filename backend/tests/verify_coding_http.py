@@ -1,8 +1,5 @@
-import urllib.request
-import json
-import sys
-
-BASE_URL = "http://localhost:8000"
+import os
+BASE_URL = os.getenv("BACKEND_PUBLIC_URL", "https://ai-hrs.onrender.com")
 
 def post(endpoint, data=None):
     url = f"{BASE_URL}{endpoint}"

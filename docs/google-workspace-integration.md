@@ -22,7 +22,7 @@ Configure the following in `backend/.env`:
 ```env
 GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/google/callback
+GOOGLE_REDIRECT_URI=https://ai-hrs.onrender.com/api/v1/integrations/google/callback
 ```
 
 ### OAuth Scopes Requested

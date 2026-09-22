@@ -99,7 +99,7 @@ export default function JobDetailPage() {
 
   const publicApplyUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/apply/${job.id}`
-    : `http://localhost:3000/apply/${job.id}`;
+    : `https://ai-hr-nine.vercel.app/apply/${job.id}`;
 
   const copyToClipboard = (url: string, channelName?: string) => {
     navigator.clipboard.writeText(url);
