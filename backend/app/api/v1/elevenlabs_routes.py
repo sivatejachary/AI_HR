@@ -175,13 +175,17 @@ def get_next_action(interview_id: str, db: Session = Depends(get_db)):
             "difficulty": session.difficulty or "MEDIUM"
         }
 
-    # Fetch latest question/answer state
-    q_data = AIInterviewOrchestrator.get_next_question(db=db, session_id=interview_id)
+    # Use the proper decide_next_action which does NOT mutate DB
+    res = AIInterviewOrchestrator.decide_next_action(db, interview_id, analysis=None)
+    
+    if res.get("status") == "error":
+        return {"action": "END_INTERVIEW", "reason": res.get("message")}
+    
     return {
-        "action": "NEXT_TOPIC" if session.current_question_number > 1 else "FOLLOW_UP",
-        "reason": "Continuing interview plan sequence",
-        "question": q_data.get("question") if isinstance(q_data, dict) else None,
-        "difficulty": session.difficulty or "MEDIUM"
+        "action": res.get("action", "NEXT_TOPIC"),
+        "reason": res.get("reason", "Continuing interview"),
+        "difficulty": session.difficulty or "MEDIUM",
+        "stage": session.current_stage or "TECHNICAL_INTERVIEW"
     }
 
 
@@ -244,7 +248,7 @@ def complete_interview(interview_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/{interview_id}/elevenlabs-post-call")
+@router.post("/{interview_id}/elevenlabs-post-call", dependencies=[Depends(verify_elevenlabs_auth)])
 def elevenlabs_post_call_webhook(
     interview_id: str,
     payload: Dict[str, Any],

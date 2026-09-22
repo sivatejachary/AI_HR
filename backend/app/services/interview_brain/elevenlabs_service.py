@@ -180,6 +180,114 @@ class ElevenLabsIntegrationService:
         return False
 
     @staticmethod
+    def initiate_outbound_call(
+        db,
+        candidate_id: str,
+        phone_number: str,
+        application_id: str,
+        job_title: str,
+        candidate_name: str
+    ) -> Dict[str, Any]:
+        """
+        Initiates a REAL outbound AI phone call to a candidate via ElevenLabs Conversational AI.
+        Creates a Call record in PostgreSQL.
+        Returns the call details including external_call_id.
+        """
+        import urllib.request
+        import urllib.error
+        import json
+        from datetime import datetime
+        from app.models.domain import Call, Application, ApplicationStatus
+        from app.core.config import settings
+
+        if not settings.ELEVENLABS_API_KEY or not settings.ELEVENLABS_AGENT_ID:
+            raise ValueError(
+                "ElevenLabs is not configured. Set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID "
+                "in your environment variables to enable AI phone calls."
+            )
+
+        if not phone_number or not phone_number.strip():
+            raise ValueError(f"Candidate {candidate_id} does not have a phone number. Cannot initiate call.")
+
+        # ElevenLabs outbound call API
+        # See: https://elevenlabs.io/docs/conversational-ai/phone-calls
+        url = "https://api.elevenlabs.io/v1/convai/twilio/outbound-call"
+        
+        payload = {
+            "agent_id": settings.ELEVENLABS_AGENT_ID,
+            "agent_phone_number_id": getattr(settings, 'ELEVENLABS_PHONE_NUMBER_ID', None),
+            "to_number": phone_number,
+            "conversation_initiation_client_data": {
+                "dynamic_variables": {
+                    "candidate_name": candidate_name,
+                    "job_title": job_title,
+                    "application_id": application_id,
+                    "candidate_id": candidate_id
+                },
+                "conversation_config_override": {
+                    "agent": {
+                        "first_message": f"Hello {candidate_name}! This is an AI HR assistant calling about your application for the {job_title} position. Congratulations — you have been shortlisted! I am calling to confirm your interest and check your availability for an interview. Is this a good time to talk?"
+                    }
+                }
+            }
+        }
+
+        call_id = f"call-{int(datetime.utcnow().timestamp()*1000)}"
+        external_call_id = None
+        conversation_id = None
+
+        try:
+            data_bytes = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=data_bytes,
+                headers={
+                    "xi-api-key": settings.ELEVENLABS_API_KEY,
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                external_call_id = result.get("callSid") or result.get("call_id") or result.get("id")
+                conversation_id = result.get("conversationId") or result.get("conversation_id")
+                logger.info(f"ElevenLabs outbound call initiated: external_call_id={external_call_id}")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8')
+            logger.error(f"ElevenLabs outbound call API error {e.code}: {err_body}")
+            raise ValueError(f"ElevenLabs API error ({e.code}): {err_body}")
+        except Exception as e:
+            logger.error(f"ElevenLabs outbound call failed: {e}")
+            raise ValueError(f"Failed to initiate ElevenLabs call: {e}")
+
+        # Save real Call record to PostgreSQL
+        new_call = Call(
+            id=call_id,
+            organization_id="org-default",
+            candidate_id=candidate_id,
+            application_id=application_id,
+            phone_number=phone_number,
+            provider="ELEVENLABS",
+            external_call_id=external_call_id,
+            conversation_id=conversation_id,
+            status="INITIATED",
+            started_at=datetime.utcnow()
+        )
+        db.add(new_call)
+        db.commit()
+
+        return {
+            "call_id": call_id,
+            "external_call_id": external_call_id,
+            "conversation_id": conversation_id,
+            "candidate_id": candidate_id,
+            "application_id": application_id,
+            "phone_number": phone_number,
+            "provider": "ELEVENLABS",
+            "status": "INITIATED"
+        }
+
+    @staticmethod
     def process_post_call_telemetry(interview_id: str, post_call_data: Dict[str, Any], db: Session) -> Dict[str, Any]:
         """
         Stores post-call webhook transcript, duration, audio recording URL, and metadata from ElevenLabs.

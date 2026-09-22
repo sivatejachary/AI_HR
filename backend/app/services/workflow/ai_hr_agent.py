@@ -115,13 +115,15 @@ class AIHRAgent:
                 "message": "AI HR screening call successfully dispatched."
             }
 
-        # 4. Scheduling Step
+        # 4. Scheduling Step — Real scheduling via GoogleWorkspaceService.schedule_google_meet()
+        # The workflow engine marks this step WAITING_FOR_HUMAN so HR can trigger the
+        # real scheduling via POST /api/v1/applications/{id}/schedule-interview
         elif step.type == StepType.SCHEDULING or "SCHEDULE" in step_name:
             return {
-                "status": "COMPLETED",
-                "provider": "n8n Calendar Integration",
-                "meeting_link": "https://meet.google.com/abc-defg-hij",
-                "message": "Interview slot invitation sent to candidate."
+                "status": "WAITING_FOR_HUMAN",
+                "action_required": "SCHEDULE_INTERVIEW",
+                "provider": "Google Calendar",
+                "message": "Scheduling step requires HR to confirm interview time. Use POST /api/v1/applications/{id}/schedule-interview to create real Google Calendar event."
             }
 
         # 5. AI Technical Interview / Coding Session

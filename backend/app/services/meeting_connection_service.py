@@ -45,18 +45,19 @@ class MeetingConnectionService:
                     candidate_id=session.candidate_id,
                     job_id=session.job_id,
                     type="Technical",
-                    date="Today",
-                    time="10:00 AM",
+                    date="Pending Scheduling",
+                    time="TBD",
                     platform="Google Meet",
-                    meeting_link="https://meet.google.com/abc-defg-hij",
-                    interviewer_name="Sarah Jenkins",
+                    meeting_link=None,  # Set via /api/v1/applications/{id}/schedule-interview
+                    interviewer_name="AI HR Agent",
                     status="UPCOMING",
                     meeting_provider="GOOGLE_MEET",
-                    meeting_url="https://meet.google.com/abc-defg-hij",
-                    meeting_status="CREATED"
+                    meeting_url=None,   # Real URL from Google Calendar API
+                    meeting_status="PENDING_SCHEDULING"
                 )
                 db.add(interview)
                 db.commit()
+
             else:
                 return {"status": "error", "message": f"Interview {interview_id} not found"}
 

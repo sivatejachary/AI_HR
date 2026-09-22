@@ -77,7 +77,7 @@ class CompetencyEvaluator:
         band = evidence.get("experience_band", "MID_LEVEL")
 
         for comp in CompetencyEvaluator.COMPETENCIES_LIST:
-            comp_q_list = [q for q in questions if q.get("skill") in comp or q.get("category") in comp or comp.startswith(q.get("stage", ""))]
+            comp_q_list = [q for q in questions if (q.get("skill") and q.get("skill") in comp) or (q.get("category") and q.get("category") in comp) or comp.startswith(q.get("stage") or "")]
             
             if not comp_q_list and comp not in ["Technical Knowledge", "Problem Solving", "Communication", "Role / JD Alignment"]:
                 # Untested competency
@@ -91,7 +91,7 @@ class CompetencyEvaluator:
                 ans = next((a for a in answers if a.get("question_id") == q["id"]), None)
                 if ans and ans.get("answer_text"):
                     depth = ans.get("technical_depth", 0.75)
-                    quality = ans.get("quality", 0.8)
+                    quality = ans.get("answer_quality", ans.get("quality", 0.8))
                     
                     score_val = round(1.0 + (quality * 2.0) + (depth * 2.0), 1)
                     score_val = max(1.0, min(5.0, score_val))
@@ -314,9 +314,13 @@ class EvaluationService:
 
     @staticmethod
     def get_evaluation(db: Session, interview_id: str, evaluation_version: str = "v1.0") -> Dict[str, Any]:
-        eval_obj = db.query(InterviewEvaluation).filter(
-            InterviewEvaluation.interview_id == interview_id
-        ).order_by(InterviewEvaluation.created_at.desc()).first()
+        query = db.query(InterviewEvaluation).filter(InterviewEvaluation.interview_id == interview_id)
+        if evaluation_version and evaluation_version != "v1.0":
+            # Try to find specific version, fallback to latest
+            ver_obj = query.filter(InterviewEvaluation.evaluation_version == int(evaluation_version.replace("v","").split(".")[0]) if evaluation_version.startswith("v") else 1).first()
+            eval_obj = ver_obj if ver_obj else query.order_by(InterviewEvaluation.created_at.desc()).first()
+        else:
+            eval_obj = query.order_by(InterviewEvaluation.created_at.desc()).first()
 
         if not eval_obj:
             return {"status": "not_found", "message": f"No evaluation found for interview {interview_id}"}

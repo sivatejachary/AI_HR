@@ -229,8 +229,11 @@ def apply_to_job(job_id: str, payload: Dict[str, Any], db: Session = Depends(get
     match_score = min(100, max(50, int((matches / max(1, len(req_keywords))) * 100) + 40))
 
     app_id = f"app-{int(datetime.utcnow().timestamp()*1000)}"
+    # Inherit org_id from job
+    org_id_for_apply = job.organization_id if hasattr(job, 'organization_id') and job.organization_id else "org-default"
     new_app = Application(
         id=app_id,
+        organization_id=org_id_for_apply,
         job_id=job.id,
         candidate_id=cand.id,
         source=ApplicationSource(payload.get("source", "CAREER_PAGE")),
@@ -708,24 +711,25 @@ def create_and_start_ai_interview(payload: Dict[str, Any], db: Session = Depends
     # Create & bind explicit Call record in calls table for tracking
     cand_obj = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     call_id = f"call-{int(datetime.utcnow().timestamp()*1000)}"
+    
+    cand_phone = None
+    if cand_obj:
+        cand_phone = getattr(cand_obj, 'phone', None)
+    
     new_call = Call(
         id=call_id,
         organization_id=company_id,
         candidate_id=candidate_id,
-        job_id=job_id,
-        candidate_phone=cand_obj.phone if cand_obj else "+919866862016",
-        type=CallType.OUTBOUND,
-        status=CallStatus.COMPLETED,
-        duration_seconds=145,
-        elevenlabs_call_id=f"el-call-{int(datetime.utcnow().timestamp())}",
-        recording_url=f"https://api.elevenlabs.io/v1/recordings/call_demo_{candidate_id}.mp3",
+        phone_number=cand_phone,
+        provider="ELEVENLABS",
+        status="INITIATED",
         created_at=datetime.utcnow()
     )
     db.add(new_call)
     db.commit()
 
     log_audit(db, "Started Phase 1 AI Interview Session & Logged Call", "InterviewSession", sess_res["interview_id"])
-    return {**start_res, "call_id": call_id, "phone_dialed": new_call.candidate_phone}
+    return {**start_res, "call_id": call_id, "phone_dialed": new_call.phone_number}
 
 @router.get("/interviews/ai/{interview_id}")
 def get_ai_interview_state(interview_id: str, company_id: Optional[str] = "org-default", db: Session = Depends(get_db)):
@@ -865,15 +869,15 @@ def start_test_ai_interview_session(payload: Optional[Dict[str, Any]] = None, db
             candidate_id=candidate.id,
             job_id=job.id,
             type="Technical",
-            date="Today",
-            time="10:00 AM",
+            date="Pending Scheduling",
+            time="TBD",
             platform="Google Meet",
-            meeting_link="https://meet.google.com/abc-defg-hij",
-            interviewer_name="Sarah Jenkins",
+            meeting_link=None,  # Real URL generated via /schedule-interview endpoint
+            interviewer_name="AI HR Agent",
             status="UPCOMING",
             meeting_provider="GOOGLE_MEET",
-            meeting_url="https://meet.google.com/abc-defg-hij",
-            meeting_status="CREATED"
+            meeting_url=None,   # Set when /api/v1/applications/{id}/schedule-interview is called
+            meeting_status="PENDING_SCHEDULING"
         )
         db.add(intv)
         db.commit()
@@ -897,6 +901,122 @@ def start_test_ai_interview_session(payload: Optional[Dict[str, Any]] = None, db
             "title": job.title
         },
         "elevenlabs_session": elevenlabs_session
+    }
+
+
+# --- 22b. SCHEDULE INTERVIEW WITH REAL GOOGLE CALENDAR ---
+@router.post("/applications/{app_id}/schedule-interview")
+def schedule_real_interview(
+    app_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    POST /api/v1/applications/{app_id}/schedule-interview
+    Creates a real interview with Google Calendar event and Google Meet link.
+    Sends confirmation email to candidate via Gmail.
+    Saves all details in PostgreSQL.
+    """
+    app = db.query(Application).filter(Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    cand = db.query(Candidate).filter(Candidate.id == app.candidate_id).first()
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+
+    job = db.query(Job).filter(Job.id == app.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    scheduled_start = payload.get("scheduled_start")  # ISO format string
+    scheduled_end = payload.get("scheduled_end")
+    timezone_str = payload.get("timezone", "Asia/Kolkata")
+
+    # Create interview record in PostgreSQL first
+    interview_id = f"intv-{int(datetime.utcnow().timestamp()*1000)}"
+    interview = Interview(
+        id=interview_id,
+        candidate_id=cand.id,
+        application_id=app_id,
+        job_id=job.id,
+        interview_type="Technical",
+        type="Technical",
+        status="UPCOMING",
+        platform="Google Meet",
+        interviewer_name=payload.get("interviewer_name", "AI HR Agent")
+    )
+    if scheduled_start:
+        try:
+            interview.scheduled_start = datetime.fromisoformat(scheduled_start.replace('Z', '+00:00'))
+        except Exception:
+            pass
+    db.add(interview)
+    db.commit()
+
+    # Create Google Calendar event with real Meet link
+    try:
+        org_id = job.organization_id if hasattr(job, 'organization_id') else "org-default"
+        meet_result = GoogleWorkspaceService.schedule_google_meet(
+            db=db,
+            candidate_id=cand.id,
+            job_id=job.id,
+            interview_id=interview_id,
+            scheduled_start_iso=scheduled_start,
+            scheduled_end_iso=scheduled_end,
+            timezone=timezone_str,
+            organization_id=org_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Google Calendar scheduling failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Calendar scheduling failed: {str(e)}")
+
+    # Send confirmation email
+    email_result = {"status": "SKIPPED"}
+    try:
+        cand_email = cand.email
+        if cand_email:
+            interview_date = scheduled_start.split('T')[0] if scheduled_start else "TBD"
+            interview_time = scheduled_start.split('T')[1][:5] if scheduled_start and 'T' in scheduled_start else "TBD"
+            email_result = GoogleWorkspaceService.send_interview_confirmation_email(
+                db=db,
+                candidate_email=cand_email,
+                candidate_name=cand.name or cand.full_name or "Candidate",
+                job_title=job.title,
+                interview_date=interview_date,
+                interview_time=interview_time,
+                timezone=timezone_str,
+                meeting_url=meet_result.get("meeting_url", ""),
+                organization_id=org_id
+            )
+    except Exception as email_err:
+        logger.error(f"Email send failed: {email_err}")
+        email_result = {"status": "FAILED", "reason": str(email_err)}
+
+    # Update application status
+    app.status = ApplicationStatus.INTERVIEW_SCHEDULED
+    app.current_stage = "Interview Scheduled"
+    db.commit()
+
+    log_audit(db, "Scheduled Real Interview with Google Meet", "Application", app_id, {
+        "interview_id": interview_id,
+        "calendar_event_id": meet_result.get("calendar_event_id"),
+        "meeting_url": meet_result.get("meeting_url")
+    })
+
+    return {
+        "status": "success",
+        "interview_id": interview_id,
+        "calendar_event_id": meet_result.get("calendar_event_id"),
+        "meeting_url": meet_result.get("meeting_url"),
+        "meeting_provider": "GOOGLE_MEET",
+        "scheduled_start": scheduled_start,
+        "scheduled_end": scheduled_end,
+        "timezone": timezone_str,
+        "email_status": email_result.get("status"),
+        "real_api_used": meet_result.get("real_api_used", False)
     }
 
 
@@ -1018,9 +1138,14 @@ def ingest_google_form_submission(payload: Dict[str, Any], db: Session = Depends
         db.refresh(cand)
 
     # 3. Application Creation
+    # Inherit organization_id from the job (single source of truth)
+    _job_for_org = db.query(Job).filter(Job.id == job_id).first()
+    org_id_for_app = _job_for_org.organization_id if _job_for_org else "org-default"
+
     app_id = f"app-{int(datetime.utcnow().timestamp()*1000)}"
     new_app = Application(
         id=app_id,
+        organization_id=org_id_for_app,
         job_id=job_id,
         candidate_id=cand.id,
         source=ApplicationSource.GOOGLE_FORM,
@@ -1037,23 +1162,23 @@ def ingest_google_form_submission(payload: Dict[str, Any], db: Session = Depends
     HiringWorkflowEngine.initialize_application_workflow(db, new_app)
     exec_res = HiringWorkflowEngine.execute_current_step(db, new_app.id, trigger_event="GOOGLE_FORM_SUBMISSION")
 
-    # 5. Persist AI Screening Result for evaluation
-    years_exp_float = float(cand.years_experience) if cand.years_experience is not None else 0.0
-    screening_res = AIScreeningResult(
-        id=f"scr-{int(datetime.utcnow().timestamp()*1000)}",
-        application_id=new_app.id,
-        match_score=92,
-        required_skills_match={"Python": "MATCH", "FastAPI": "MATCH", "PostgreSQL": "MATCH", "RAG": "MATCH"},
-        missing_requirements=[],
-        experience_match={"required": 2.0, "candidate": years_exp_float},
-        explanation=f"Candidate {cand.name} matches job requirements with {years_exp_float} years experience.",
-        recommendation="SHORTLIST_FOR_HR_REVIEW"
-    )
-    db.add(screening_res)
-
-    new_app.status = ApplicationStatus.AI_SHORTLISTED
-    new_app.current_stage = "Shortlisted"
-    db.commit()
+    # 5. Real Gemini AI Screening (replaces hardcoded 92% score)
+    try:
+        from app.services.ai_screening_service import GeminiScreeningService
+        job_obj = db.query(Job).filter(Job.id == job_id).first()
+        if job_obj:
+            screening_result = GeminiScreeningService.screen_candidate(
+                db=db,
+                application_id=new_app.id,
+                candidate=cand,
+                job=job_obj
+            )
+            match_score_final = screening_result["match_score"]
+        else:
+            match_score_final = 0
+    except Exception as screening_err:
+        logger.error(f"Gemini screening failed for application {new_app.id}: {screening_err}")
+        match_score_final = 0
 
     log_audit(db, "Ingested Google Form Candidate", "Candidate", cand.id, {"google_form_id": google_form_id, "application_id": app_id})
 
@@ -1064,8 +1189,49 @@ def ingest_google_form_submission(payload: Dict[str, Any], db: Session = Depends
         "application_id": new_app.id,
         "job_id": job_id,
         "workflow_step": exec_res.get("step_name") or "Shortlisted",
-        "match_score": 92
+        "match_score": match_score_final
     }
+
+
+# --- 23. ELEVENLABS OUTBOUND CALL TRIGGER ---
+@router.post("/applications/{app_id}/trigger-screening-call")
+def trigger_screening_call(app_id: str, db: Session = Depends(get_db)):
+    """
+    POST /api/v1/applications/{app_id}/trigger-screening-call
+    Triggers a REAL ElevenLabs outbound AI phone call to a shortlisted candidate.
+    Only works when ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID are configured.
+    """
+    from app.services.interview_brain.elevenlabs_service import ElevenLabsIntegrationService
+    
+    app = db.query(Application).filter(Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if app.status not in (ApplicationStatus.AI_SHORTLISTED, ApplicationStatus.HR_APPROVED):
+        raise HTTPException(status_code=400, detail=f"Application status is '{app.status}' — can only call SHORTLISTED or HR_APPROVED candidates")
+    
+    cand = db.query(Candidate).filter(Candidate.id == app.candidate_id).first()
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    job = db.query(Job).filter(Job.id == app.job_id).first()
+    
+    try:
+        result = ElevenLabsIntegrationService.initiate_outbound_call(
+            db=db,
+            candidate_id=cand.id,
+            phone_number=cand.phone or "",
+            application_id=app_id,
+            job_title=job.title if job else "the position",
+            candidate_name=cand.name or cand.full_name or "Candidate"
+        )
+        log_audit(db, "Triggered ElevenLabs Screening Call", "Application", app_id, {"call_id": result.get("call_id")})
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error triggering call for application {app_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to initiate call")
 
 
 # --- WORKFLOW SCHEDULER & INTEGRATION ENDPOINTS ---

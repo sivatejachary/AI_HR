@@ -278,9 +278,11 @@ class GoogleWorkspaceService:
                             "questionItem": {
                                 "question": {
                                     "required": fld.get("required", False),
-                                    "textQuestion": {
-                                        "paragraph": fld.get("type") == "PARAGRAPH"
-                                    }
+                                    **(
+                                        {"choiceQuestion": {"type": "CHECKBOX", "options": [{"value": "I consent"}], "shuffle": False}}
+                                        if fld.get("type") == "CHECKBOX"
+                                        else {"textQuestion": {"paragraph": fld.get("type") == "PARAGRAPH"}}
+                                    )
                                 }
                             }
                         },
@@ -324,51 +326,46 @@ class GoogleWorkspaceService:
                 "google_responder_url": job.google_responder_url
             }
 
-        # Ensure Google Workspace Integration record exists in DB
+        # Require real connected Google Workspace integration
         integration = db.query(Integration).filter(
             Integration.organization_id == organization_id,
             Integration.platform_name == "Google Workspace"
         ).first()
 
-        if not integration:
-            integration = Integration(
-                id=f"integ-google-{int(datetime.utcnow().timestamp())}",
-                organization_id=organization_id,
-                platform_name="Google Workspace",
-                is_connected=True,
-                access_token_encrypted="demo_google_access_token_2026"
+        if not integration or not integration.is_connected or not integration.access_token_encrypted:
+            raise ValueError(
+                "Google account is not connected. Please connect Google before creating a candidate form. "
+                "Go to Integrations > Connect Google to authorize your Google Workspace account."
             )
-            db.add(integration)
-            db.commit()
-        elif not integration.is_connected:
-            integration.is_connected = True
-            if not integration.access_token_encrypted:
-                integration.access_token_encrypted = "demo_google_access_token_2026"
-            db.commit()
 
-        access_token = integration.access_token_encrypted or "demo_google_access_token_2026"
+        # Check if token needs refresh
+        from datetime import datetime as dt
+        access_token = integration.access_token_encrypted
+        if integration.token_expires_at and integration.token_expires_at < dt.utcnow():
+            refreshed_token = GoogleWorkspaceService.refresh_access_token(db, integration)
+            if refreshed_token:
+                access_token = refreshed_token
+            else:
+                raise ValueError(
+                    "Google OAuth token has expired and could not be refreshed. "
+                    "Please reconnect your Google account from the Integrations page."
+                )
+
         form_title = f"Application Form — {job.title} ({job.department})"
         
-        # Try calling real Google Forms REST API v1 or fallback to generated Form ID
-        form_id = None
-        responder_url = None
-        edit_url = None
-
-        if access_token and not access_token.startswith("demo_"):
-            try:
-                api_res = GoogleWorkspaceService._call_google_forms_api_create(form_title, access_token)
-                if api_res and "formId" in api_res:
-                    form_id = api_res["formId"]
-                    responder_url = api_res.get("responderUri") or f"https://docs.google.com/forms/d/e/{form_id}/viewform"
-                    edit_url = f"https://docs.google.com/forms/d/{form_id}/edit"
-            except Exception as err:
-                logger.warning(f"Google Forms API live call fallback: {err}")
-
-        if not form_id:
-            ts_str = str(int(datetime.utcnow().timestamp() * 1000))
-            form_id = f"1FAIpQLSe_FORM_{job.id}_{ts_str[-6:]}"
-            responder_url = f"https://docs.google.com/forms/d/e/{form_id}/viewform"
+        # Call the real Google Forms REST API v1
+        # test_ tokens are for integration testing only
+        try:
+            api_res = GoogleWorkspaceService._call_google_forms_api_create(form_title, access_token)
+            if not api_res or "formId" not in api_res:
+                raise ValueError("Google Forms API did not return a valid form ID. Check your OAuth scopes include 'https://www.googleapis.com/auth/forms.body'.")
+            form_id = api_res["formId"]
+            responder_url = api_res.get("responderUri") or f"https://docs.google.com/forms/d/e/{form_id}/viewform"
             edit_url = f"https://docs.google.com/forms/d/{form_id}/edit"
+        except ValueError:
+            raise
+        except Exception as err:
+            raise ValueError(f"Failed to create Google Form: {err}")
 
         # Construct standard fields schema
         fields_config = [
@@ -440,26 +437,308 @@ class GoogleWorkspaceService:
 
     @staticmethod
     def schedule_google_meet(
-        db: Session,
+        db,
         candidate_id: str,
         job_id: str,
-        scheduled_time_str: str = "Tomorrow 2:00 PM EST"
+        interview_id: Optional[str] = None,
+        scheduled_time_str: str = "Tomorrow 2:00 PM IST",
+        scheduled_start_iso: Optional[str] = None,
+        scheduled_end_iso: Optional[str] = None,
+        timezone: str = "Asia/Kolkata",
+        organization_id: str = "org-default"
     ) -> Dict[str, Any]:
         """
-        Creates Google Calendar Event with Google Meet video conference link.
+        Creates a REAL Google Calendar event with Google Meet video conference link.
+        Requires Google Workspace to be connected (real OAuth token).
+        Returns the real Google Meet URL generated by Google Calendar API.
         """
+        import json
+        import urllib.request
+        import urllib.error
+        from datetime import datetime, timedelta
+
         candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
         job = db.query(Job).filter(Job.id == job_id).first()
 
-        event_id = f"gcal_evt_{int(datetime.utcnow().timestamp()*1000)}"
-        meet_code = f"meet-{int(datetime.utcnow().timestamp()) % 1000000}"
-        meet_url = f"https://meet.google.com/meet-gmeet-{meet_code}"
+        if not candidate or not job:
+            raise ValueError(f"Candidate '{candidate_id}' or Job '{job_id}' not found")
+
+        # Get connected Google Workspace integration
+        integration = db.query(Integration).filter(
+            Integration.organization_id == organization_id,
+            Integration.platform_name == "Google Workspace"
+        ).first()
+
+        if not integration or not integration.is_connected or not integration.access_token_encrypted:
+            raise ValueError(
+                "Google account is not connected. Please connect Google before scheduling interviews."
+            )
+
+        # Refresh token if expired
+        access_token = integration.access_token_encrypted
+        if integration.token_expires_at:
+            try:
+                exp = integration.token_expires_at
+                if hasattr(exp, 'tzinfo') and exp.tzinfo:
+                    from datetime import timezone as tz_module
+                    now_utc = datetime.now(tz_module.utc)
+                    if exp < now_utc:
+                        refreshed = GoogleWorkspaceService.refresh_access_token(db, integration)
+                        if refreshed:
+                            access_token = refreshed
+            except Exception:
+                pass
+
+        # Parse scheduled times
+        if scheduled_start_iso:
+            start_dt_str = scheduled_start_iso
+            # Compute end 1 hour later if not provided
+            if scheduled_end_iso:
+                end_dt_str = scheduled_end_iso
+            else:
+                # Add 1 hour
+                try:
+                    start_dt = datetime.fromisoformat(scheduled_start_iso.replace('Z', '+00:00'))
+                    end_dt = start_dt + timedelta(hours=1)
+                    end_dt_str = end_dt.isoformat()
+                except Exception:
+                    end_dt_str = scheduled_start_iso  # fallback
+        else:
+            # Default: tomorrow at 10:00 AM
+            tomorrow = datetime.utcnow() + timedelta(days=1)
+            start_dt = tomorrow.replace(hour=10, minute=0, second=0, microsecond=0)
+            end_dt = start_dt + timedelta(hours=1)
+            start_dt_str = start_dt.strftime("%Y-%m-%dT%H:%M:%S")
+            end_dt_str = end_dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+        cand_name = candidate.name or candidate.full_name or "Candidate"
+        cand_email = candidate.email
+        job_title = job.title
+
+        # Build Google Calendar event payload with Google Meet
+        event_payload = {
+            "summary": f"Interview: {cand_name} — {job_title}",
+            "description": f"AI HR Interview for {job_title} position.\nCandidate: {cand_name}\nJob ID: {job_id}",
+            "start": {"dateTime": start_dt_str, "timeZone": timezone},
+            "end": {"dateTime": end_dt_str, "timeZone": timezone},
+            "attendees": [
+                {"email": cand_email, "displayName": cand_name}
+            ],
+            "conferenceData": {
+                "createRequest": {
+                    "requestId": f"interview-{candidate_id}-{int(datetime.utcnow().timestamp())}",
+                    "conferenceSolutionKey": {"type": "hangoutsMeet"}
+                }
+            },
+            "reminders": {
+                "useDefault": False,
+                "overrides": [
+                    {"method": "email", "minutes": 1440},
+                    {"method": "popup", "minutes": 60}
+                ]
+            }
+        }
+
+        calendar_event_id = None
+        meeting_url = None
+        real_api_used = False
+
+        # Call real Google Calendar API (skip for test tokens)
+        if access_token and not access_token.startswith(("test_", "demo_")):
+            try:
+                url = "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all"
+                data_bytes = json.dumps(event_payload).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data_bytes,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    api_result = json.loads(resp.read().decode("utf-8"))
+                    calendar_event_id = api_result.get("id")
+                    # Extract Google Meet link
+                    conference_data = api_result.get("conferenceData", {})
+                    entry_points = conference_data.get("entryPoints", [])
+                    for ep in entry_points:
+                        if ep.get("entryPointType") == "video":
+                            meeting_url = ep.get("uri")
+                            break
+                    if not meeting_url:
+                        meeting_url = api_result.get("hangoutLink")
+                    real_api_used = True
+                    logger.info(f"Google Calendar event created: {calendar_event_id}, meet={meeting_url}")
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode('utf-8')
+                logger.error(f"Google Calendar API error {e.code}: {err_body}")
+                raise ValueError(f"Google Calendar API error ({e.code}): {err_body}")
+            except Exception as e:
+                logger.error(f"Google Calendar API call failed: {e}")
+                raise ValueError(f"Failed to create Google Calendar event: {e}")
+        else:
+            # Test mode only — generate test-mode URL
+            ts = int(datetime.utcnow().timestamp())
+            calendar_event_id = f"test_cal_evt_{ts}"
+            meeting_url = f"https://meet.google.com/test-mode-{ts}"
+            logger.warning("Google Calendar called in test-token mode. Using test meeting URL.")
+
+        # Update Interview record in PostgreSQL if interview_id provided
+        if interview_id:
+            from app.models.domain import Interview
+            interview = db.query(Interview).filter(Interview.id == interview_id).first()
+            if interview:
+                interview.meeting_url = meeting_url
+                interview.meeting_link = meeting_url
+                interview.meeting_provider = "GOOGLE_MEET"
+                interview.meeting_status = "CREATED"
+                if hasattr(interview, 'calendar_event_id'):
+                    interview.calendar_event_id = calendar_event_id
+                if scheduled_start_iso:
+                    try:
+                        interview.scheduled_start = datetime.fromisoformat(scheduled_start_iso.replace('Z', '+00:00'))
+                    except Exception:
+                        pass
+                db.commit()
 
         return {
-            "calendar_event_id": event_id,
-            "meeting_url": meet_url,
-            "conference_id": meet_code,
-            "provider": "GOOGLE_MEET",
-            "candidate_email": candidate.email if candidate else None,
-            "scheduled_time": scheduled_time_str
+            "calendar_event_id": calendar_event_id,
+            "meeting_url": meeting_url,
+            "meeting_provider": "GOOGLE_MEET",
+            "candidate_email": cand_email,
+            "candidate_name": cand_name,
+            "job_title": job_title,
+            "scheduled_start": start_dt_str,
+            "scheduled_end": end_dt_str,
+            "timezone": timezone,
+            "real_api_used": real_api_used
+        }
+
+    @staticmethod
+    def send_interview_confirmation_email(
+        db,
+        candidate_email: str,
+        candidate_name: str,
+        job_title: str,
+        interview_date: str,
+        interview_time: str,
+        timezone: str,
+        meeting_url: str,
+        organization_id: str = "org-default"
+    ) -> Dict[str, Any]:
+        """
+        Sends a REAL interview confirmation email to the candidate via Gmail API.
+        Requires Google Workspace (Gmail) to be connected.
+        Returns the email status and message ID.
+        """
+        import json
+        import base64
+        import urllib.request
+        import urllib.error
+        from datetime import datetime
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        # Get Google Workspace integration
+        integration = db.query(Integration).filter(
+            Integration.organization_id == organization_id,
+            Integration.platform_name == "Google Workspace"
+        ).first()
+
+        if not integration or not integration.is_connected or not integration.access_token_encrypted:
+            return {
+                "status": "SKIPPED",
+                "reason": "Google Workspace not connected. Email not sent."
+            }
+
+        access_token = integration.access_token_encrypted
+
+        # Refresh if expired
+        if integration.token_expires_at:
+            try:
+                exp = integration.token_expires_at
+                if hasattr(exp, 'tzinfo') and exp.tzinfo:
+                    from datetime import timezone as tz_module
+                    now_utc = datetime.now(tz_module.utc)
+                    if exp < now_utc:
+                        refreshed = GoogleWorkspaceService.refresh_access_token(db, integration)
+                        if refreshed:
+                            access_token = refreshed
+            except Exception:
+                pass
+
+        # Build email
+        subject = f"Interview Confirmation — {job_title}"
+        body_text = f"""Dear {candidate_name},
+
+Congratulations! We are pleased to confirm your interview for the {job_title} position.
+
+Interview Details:
+- Date: {interview_date}
+- Time: {interview_time} ({timezone})
+- Meeting Link: {meeting_url}
+
+Please join the meeting using the link above at the scheduled time.
+
+Instructions:
+1. Ensure you have a stable internet connection.
+2. Test your camera and microphone before the interview.
+3. Join 5 minutes early.
+4. Have your resume and portfolio ready.
+
+If you need to reschedule, please reply to this email at least 24 hours in advance.
+
+Best regards,
+AI HR Team"""
+
+        # Create MIME message
+        msg = MIMEMultipart()
+        msg['To'] = candidate_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body_text, 'plain'))
+
+        # Encode to base64 for Gmail API
+        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+
+        email_result = None
+        message_id = None
+
+        if access_token and not access_token.startswith(("test_", "demo_")):
+            try:
+                url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+                payload = {"raw": raw_message}
+                data_bytes = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data_bytes,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    api_result = json.loads(resp.read().decode("utf-8"))
+                    message_id = api_result.get("id")
+                    email_result = "SENT"
+                    logger.info(f"Gmail confirmation sent to {candidate_email}, message_id={message_id}")
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode('utf-8')
+                logger.error(f"Gmail API error {e.code}: {err_body}")
+                return {"status": "FAILED", "reason": f"Gmail API error ({e.code}): {err_body}"}
+            except Exception as e:
+                logger.error(f"Gmail send failed: {e}")
+                return {"status": "FAILED", "reason": str(e)}
+        else:
+            logger.warning(f"Gmail called in test mode — email NOT sent to {candidate_email}")
+            email_result = "TEST_MODE_SKIPPED"
+            message_id = f"test_msg_{int(datetime.utcnow().timestamp())}"
+
+        return {
+            "status": email_result,
+            "message_id": message_id,
+            "recipient": candidate_email,
+            "subject": subject
         }

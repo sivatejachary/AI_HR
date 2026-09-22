@@ -710,6 +710,53 @@ class WorkflowExecutionEngine:
         return {"status": "success", "message": "Candidate workflow cancelled."}
 
     @staticmethod
+    def takeover_workflow(db: Session, candidate_workflow_id: str, is_active: bool) -> Dict[str, Any]:
+        """
+        HR Human Takeover: Sets or clears the human takeover flag on a candidate workflow.
+        When is_active=True: pauses automated execution and flags that a human HR is managing this candidate.
+        When is_active=False: clears human takeover flag and resumes normal automated execution.
+        """
+        cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.id == candidate_workflow_id).first()
+        if not cwf:
+            return {"status": "error", "message": f"CandidateWorkflow '{candidate_workflow_id}' not found"}
+
+        cwf.is_human_takeover = is_active
+        if is_active:
+            cwf.is_paused = True
+            cwf.paused_at = datetime.utcnow()
+            cwf.status = "HUMAN_TAKEOVER"
+        else:
+            cwf.is_paused = False
+            cwf.status = "IN_PROGRESS"
+
+        db.commit()
+
+        # Log event
+        event = WorkflowEvent(
+            id=f"wfe-{int(time.time()*1000)}",
+            candidate_workflow_id=candidate_workflow_id,
+            candidate_id=cwf.candidate_id,
+            application_id=cwf.application_id,
+            job_id=cwf.job_id,
+            event_type="hr.takeover.activated" if is_active else "hr.takeover.released",
+            actor_type="HUMAN_HR",
+            event_data={"is_active": is_active, "candidate_workflow_id": candidate_workflow_id}
+        )
+        db.add(event)
+        db.commit()
+
+        if not is_active:
+            # Resume automated execution
+            WorkflowExecutionEngine.execute_due_steps(db, target_cwf_id=candidate_workflow_id)
+
+        return {
+            "status": "success",
+            "candidate_workflow_id": candidate_workflow_id,
+            "is_human_takeover": is_active,
+            "message": "Human takeover activated. Automated steps paused." if is_active else "Human takeover released. Automated execution resumed."
+        }
+
+    @staticmethod
     def retry_step(db: Session, candidate_workflow_id: str, step_id: Optional[str] = None) -> Dict[str, Any]:
         """HR Manual Action: Resets failed/stuck step and re-executes."""
         cwf = db.query(CandidateWorkflow).filter(CandidateWorkflow.id == candidate_workflow_id).first()

@@ -43,9 +43,13 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "https://ai-hrs.onrender.com/api/v1/integrations/google/callback")
     GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "")
 
+    # Google Gemini AI API
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+
     # ElevenLabs Voice AI
     ELEVENLABS_API_KEY: Optional[str] = os.getenv("ELEVENLABS_API_KEY")
     ELEVENLABS_AGENT_ID: Optional[str] = os.getenv("ELEVENLABS_AGENT_ID")
+    ELEVENLABS_PHONE_NUMBER_ID: Optional[str] = os.getenv("ELEVENLABS_PHONE_NUMBER_ID")
     ELEVENLABS_WEBHOOK_URL: str = os.getenv("ELEVENLABS_WEBHOOK_URL", "https://ai-hrs.onrender.com/api/v1/calls/elevenlabs-webhook")
 
     # Redis & Vector Search
