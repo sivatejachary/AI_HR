@@ -121,7 +121,7 @@ def list_jobs(status: Optional[str] = None, db: Session = Depends(get_db)):
 
 @router.post("/jobs")
 def create_job(payload: Dict[str, Any], db: Session = Depends(get_db)):
-    job_id = f"job-{int(datetime.utcnow().timestamp()*1000)}"
+    job_id = payload.get("id") or f"job-{int(datetime.utcnow().timestamp()*1000)}"
     target_wf_id = payload.get("workflowId", "wf-se-1")
     wf_exists = db.query(HiringWorkflow).filter(HiringWorkflow.id == target_wf_id).first()
     if not wf_exists:

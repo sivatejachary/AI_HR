@@ -92,10 +92,11 @@ export function useHRState() {
 
   // Actions
 
-  const addJob = async (newJob: Job) => {
+  const addJob = async (newJob: Job): Promise<Job> => {
     setJobs(prev => [newJob, ...prev]);
     try {
-      await api.createJob({
+      const res = await api.createJob({
+        id: newJob.id,
         title: newJob.title,
         department: newJob.department,
         employmentType: newJob.employmentType,
@@ -111,11 +112,14 @@ export function useHRState() {
         workflowId: newJob.workflowId,
         status: newJob.status
       });
-      refreshAllData();
+      await refreshAllData();
+      logActivity('HUMAN', 'HR Recruiter', `Created Job: ${newJob.title}`, `Status: ${newJob.status}`);
+      const assignedId = res?.job_id || res?.id || newJob.id;
+      return { ...newJob, id: assignedId };
     } catch (e) {
-      console.warn('API save fallback');
+      console.warn('API save fallback', e);
+      return newJob;
     }
-    logActivity('HUMAN', 'HR Recruiter', `Created Job: ${newJob.title}`, `Status: ${newJob.status}`);
   };
 
   const updateJobStatus = async (jobId: string, status: Job['status']) => {

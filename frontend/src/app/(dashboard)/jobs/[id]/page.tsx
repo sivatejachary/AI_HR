@@ -23,7 +23,27 @@ export default function JobDetailPage() {
   const hrState = useHRState();
   const jobId = params.id as string;
 
-  const job = hrState.jobs.find(j => j.id === jobId) || hrState.jobs[0];
+  const [fetchedJob, setFetchedJob] = useState<any>(null);
+  const [loadingJob, setLoadingJob] = useState(true);
+
+  React.useEffect(() => {
+    const existing = hrState.jobs.find(j => j.id === jobId);
+    if (existing) {
+      setLoadingJob(false);
+      return;
+    }
+    api.getJobs()
+      .then(jobs => {
+        if (jobs && Array.isArray(jobs)) {
+          const match = jobs.find((j: any) => j.id === jobId);
+          if (match) setFetchedJob(match);
+        }
+      })
+      .catch(err => console.warn('[JobDetail] API fetch fallback error', err))
+      .finally(() => setLoadingJob(false));
+  }, [jobId, hrState.jobs]);
+
+  const job = hrState.jobs.find(j => j.id === jobId) || fetchedJob;
   const jobApps = hrState.applications.filter(a => a.jobId === job?.id);
 
   const [activeTab, setActiveTab] = useState<
@@ -36,26 +56,40 @@ export default function JobDetailPage() {
   const [googleFormUrl, setGoogleFormUrl] = useState<string | null>(null);
   const [googleFormId, setGoogleFormId] = useState<string | null>(null);
 
+  const activeFormUrl = googleFormUrl || job?.google_responder_url || job?.google_form_url || (googleFormId ? `https://docs.google.com/forms/d/e/${googleFormId}/viewform` : null);
+
   const handleCreateGoogleForm = async () => {
+    if (!job) return;
     setCreatingForm(true);
     try {
       const res = await api.createJobGoogleForm(job.id);
-      if (res && res.google_form_url) {
-        setGoogleFormUrl(res.google_form_url);
-        setGoogleFormId(res.google_form_id);
+      if (res) {
+        const formUrl = res.google_responder_url || res.google_form_url || (res.google_form_id ? `https://docs.google.com/forms/d/e/${res.google_form_id}/viewform` : null);
+        setGoogleFormUrl(formUrl);
+        setGoogleFormId(res.google_form_id || null);
+        setActiveTab('Application Form');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('[JobDetail] Create Google Form Error:', e);
+      alert(`Google Form Generation Notice: ${e.message || 'Unable to generate form. Please check backend connection.'}`);
     } finally {
       setCreatingForm(false);
     }
   };
 
   if (!job) {
+    if (loadingJob) {
+      return (
+        <div className="p-12 bg-white border border-gray-200 rounded-lg text-center space-y-3 max-w-lg mx-auto">
+          <div className="w-6 h-6 border-2 border-blue-900 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs text-gray-500 font-medium">Loading position details from PostgreSQL DB...</p>
+        </div>
+      );
+    }
     return (
       <div className="p-8 bg-white border border-gray-200 rounded-lg text-center space-y-4 max-w-lg mx-auto">
         <h2 className="text-lg font-semibold text-gray-900">Job not found</h2>
-        <p className="text-xs text-gray-500">The requested job position does not exist or was deleted.</p>
+        <p className="text-xs text-gray-500">The requested job position (ID: <code className="font-mono bg-gray-100 px-1 py-0.5 rounded text-gray-800">{jobId}</code>) does not exist or was deleted.</p>
         <Link href="/jobs" className="inline-block px-4 py-2 bg-blue-900 text-white text-xs font-medium rounded">
           Back to Jobs
         </Link>
@@ -227,15 +261,80 @@ export default function JobDetailPage() {
                 <p className="text-xs text-gray-500 mt-0.5">Status: <strong className="text-emerald-700">Published</strong></p>
               </div>
 
-              <a
-                href={`/apply/${job.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded font-medium flex items-center gap-1"
-              >
-                <ExternalLink size={12} /> Preview Form
-              </a>
+              <div className="flex items-center gap-2">
+                {!activeFormUrl && (
+                  <button
+                    onClick={handleCreateGoogleForm}
+                    disabled={creatingForm}
+                    className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded font-medium flex items-center gap-1.5 transition"
+                  >
+                    <FileSpreadsheet size={13} /> {creatingForm ? 'Creating Google Form...' : 'Generate Google Form'}
+                  </button>
+                )}
+                <a
+                  href={`/apply/${job.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded font-medium flex items-center gap-1"
+                >
+                  <ExternalLink size={12} /> Preview Form
+                </a>
+              </div>
             </div>
+
+            {/* Google Form Active Card */}
+            {activeFormUrl ? (
+              <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <FileSpreadsheet className="text-purple-900" size={20} />
+                    <div>
+                      <h4 className="font-semibold text-purple-950 text-xs">Live Google Form Integration Active</h4>
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        Google Form Responder URL for candidates. Ingests candidate applications automatically.
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={activeFormUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-purple-900 hover:bg-purple-800 text-white rounded text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
+                  >
+                    <ExternalLink size={12} /> Open Google Form
+                  </a>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white p-2 rounded border border-purple-200">
+                  <input
+                    type="text"
+                    readOnly
+                    value={activeFormUrl}
+                    className="bg-transparent border-none w-full text-purple-950 font-mono text-[11px] focus:outline-none"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(activeFormUrl)}
+                    className="px-2.5 py-1 bg-purple-100 hover:bg-purple-200 text-purple-900 rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 transition"
+                  >
+                    <Copy size={11} /> Copy Link
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs">
+                <div>
+                  <h4 className="font-semibold text-blue-950">Google Form Not Yet Generated</h4>
+                  <p className="text-[11px] text-gray-600 mt-0.5">Generate a Google Form for this position to ingest candidate applications automatically.</p>
+                </div>
+                <button
+                  onClick={handleCreateGoogleForm}
+                  disabled={creatingForm}
+                  className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center gap-1.5 transition"
+                >
+                  <FileSpreadsheet size={13} /> {creatingForm ? 'Creating...' : 'Generate Google Form'}
+                </button>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-gray-700 font-medium block">Application URL</label>

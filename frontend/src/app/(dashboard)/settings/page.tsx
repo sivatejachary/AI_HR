@@ -8,16 +8,16 @@ export default function SettingsPage() {
   const hrState = useHRState();
   const [policy, setPolicy] = useState(hrState.companyPolicy);
   const [elevenLabsKey, setElevenLabsKey] = useState('sk_elevenlabs_live_9a87f65e4d3c2b1a');
-  const [n8nBaseUrl, setN8nBaseUrl] = useState('https://shivaaiengineer.app.n8n.cloud/webhook/');
+  const [n8nBaseUrl, setN8nBaseUrl] = useState('https://shivateja123.app.n8n.cloud/webhook/');
   const [webhooks, setWebhooks] = useState({
-    candidateIntake: 'https://shivaaiengineer.app.n8n.cloud/webhook/recruitment-agent-flow',
-    postCall: 'https://shivaaiengineer.app.n8n.cloud/webhook/elevenlabs-post-call',
-    checkAvailability: 'https://shivaaiengineer.app.n8n.cloud/webhook/check-interview-availability',
-    scheduleInterview: 'https://shivaaiengineer.app.n8n.cloud/webhook/schedule-interview',
-    saveQA: 'https://shivaaiengineer.app.n8n.cloud/webhook/save-interview-qa',
-    transcript: 'https://shivaaiengineer.app.n8n.cloud/webhook/interview-transcript',
-    reschedule: 'https://shivaaiengineer.app.n8n.cloud/webhook/reschedule-interview',
-    cancel: 'https://shivaaiengineer.app.n8n.cloud/webhook/cancel-interview'
+    candidateIntake: 'https://shivateja123.app.n8n.cloud/webhook/candidate-intake',
+    postCall: 'https://shivateja123.app.n8n.cloud/webhook/elevenlabs-post-call',
+    checkAvailability: 'https://shivateja123.app.n8n.cloud/webhook/check-interview-availability',
+    scheduleInterview: 'https://shivateja123.app.n8n.cloud/webhook/schedule-interview',
+    saveQA: 'https://shivateja123.app.n8n.cloud/webhook/save-interview-qa',
+    transcript: 'https://shivateja123.app.n8n.cloud/webhook/interview-transcript',
+    reschedule: 'https://shivateja123.app.n8n.cloud/webhook/reschedule-interview',
+    cancel: 'https://shivateja123.app.n8n.cloud/webhook/cancel-interview'
   });
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -119,7 +119,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="pt-2 border-t border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-3">n8n Cloud Webhook Routing (shivaaiengineer.app.n8n.cloud)</h3>
+              <h3 className="font-semibold text-gray-800 mb-3">n8n Cloud Webhook Routing (shivateja123.app.n8n.cloud)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="text-gray-600 text-[11px] block font-mono">Candidate Intake</label>

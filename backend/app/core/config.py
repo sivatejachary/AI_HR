@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     FRONTEND_PUBLIC_URL: str = os.getenv("FRONTEND_PUBLIC_URL", "https://ai-hr-nine.vercel.app")
 
     # n8n Automation Engine URLs
-    N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivaaiengineer.app.n8n.cloud")
-    N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivaaiengineer.app.n8n.cloud")
+    N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivateja123.app.n8n.cloud")
+    N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivateja123.app.n8n.cloud")
     N8N_INTEGRATION_API_KEY: str = os.getenv("N8N_INTEGRATION_API_KEY", "n8n_live_key_recruitmentpro_2026")
 
     # Google Cloud OAuth 2.0 Credentials (Project feisty-legend-450615-n5)

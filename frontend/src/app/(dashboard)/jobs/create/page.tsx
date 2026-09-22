@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 import { useHRState } from '../../../../stores/useHRStore';
 import { Job, WorkplaceType, JobDistribution } from '../../../../types';
 import {
@@ -21,6 +22,7 @@ export default function CreateJobWizardPage() {
   const router = useRouter();
   const hrState = useHRState();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -93,11 +95,13 @@ export default function CreateJobWizardPage() {
       return;
     }
 
+    setIsSubmitting(true);
     const selectedWf = hrState.workflows.find(w => w.id === formData.workflowId);
+    const jobId = `job-${Date.now()}`;
 
     const initialDists: JobDistribution[] = formData.selectedPlatforms.map(p => ({
       id: `dist-${Date.now()}-${p}`,
-      jobId: `job-${Date.now()}`,
+      jobId: jobId,
       platform: p as any,
       connectionStatus: 'CONNECTED',
       publicationStatus: status === 'PUBLISHED' ? 'PUBLISHED' : 'READY',
@@ -105,7 +109,7 @@ export default function CreateJobWizardPage() {
     }));
 
     const newJob: Job = {
-      id: `job-${Date.now()}`,
+      id: jobId,
       title: formData.title,
       department: formData.department,
       employmentType: formData.employmentType,
@@ -132,8 +136,24 @@ export default function CreateJobWizardPage() {
       applicantsCount: 0
     };
 
-    await hrState.createJob(newJob);
-    router.push(`/jobs/${newJob.id}?created=true`);
+    try {
+      const createdJob = await hrState.createJob(newJob);
+      const targetId = createdJob?.id || jobId;
+
+      if (formData.sourcingMethods.includes('CREATE_FORM')) {
+        try {
+          await api.createJobGoogleForm(targetId);
+        } catch (err) {
+          console.warn('[Wizard] Auto-create Google Form notice', err);
+        }
+      }
+      router.push(`/jobs/${targetId}?created=true`);
+    } catch (e) {
+      console.error('[Wizard] Error creating job', e);
+      router.push(`/jobs/${jobId}?created=true`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
