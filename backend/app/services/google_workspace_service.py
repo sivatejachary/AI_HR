@@ -8,13 +8,9 @@ from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
 from app.models.domain import Integration, Job, ApplicationForm, Candidate, Application, InterviewSession
+from app.core.config import settings
 
 logger = logging.getLogger("google_workspace_service")
-
-# Default Google OAuth Configuration (Project feisty-legend-450615-n5)
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "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")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/integrations/google/callback")
 
 GOOGLE_AUTH_SCOPES = [
     "https://www.googleapis.com/auth/forms.body",
@@ -39,8 +35,8 @@ class GoogleWorkspaceService:
             state_param += f"&extra={state_extra}"
 
         params = {
-            "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "redirect_uri": settings.GOOGLE_REDIRECT_URI,
             "response_type": "code",
             "scope": " ".join(GOOGLE_AUTH_SCOPES),
             "access_type": "offline",
@@ -145,8 +141,8 @@ class GoogleWorkspaceService:
         try:
             url = "https://oauth2.googleapis.com/token"
             payload = {
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
                 "refresh_token": integration.refresh_token_encrypted,
                 "grant_type": "refresh_token"
             }
@@ -189,9 +185,9 @@ class GoogleWorkspaceService:
         url = "https://oauth2.googleapis.com/token"
         payload = {
             "code": code,
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "redirect_uri": settings.GOOGLE_REDIRECT_URI,
             "grant_type": "authorization_code"
         }
         data_bytes = urllib.parse.urlencode(payload).encode("utf-8")

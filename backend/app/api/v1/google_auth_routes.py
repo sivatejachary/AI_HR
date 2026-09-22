@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.core.config import settings
 from app.services.google_workspace_service import GoogleWorkspaceService
 
 logger = logging.getLogger("google_auth_routes")
@@ -41,12 +42,14 @@ def google_oauth_callback(
     GET /api/v1/integrations/google/callback
     Exchanges OAuth authorization code for Google Access & Refresh tokens.
     """
+    frontend_base = settings.FRONTEND_PUBLIC_URL.rstrip('/')
+
     if error:
         logger.warning(f"Google OAuth denied by user: {error}")
-        return RedirectResponse(url="http://localhost:3000/integrations?status=denied")
+        return RedirectResponse(url=f"{frontend_base}/integrations?status=denied")
 
     if not code:
-        return RedirectResponse(url="http://localhost:3000/integrations?status=missing_code")
+        return RedirectResponse(url=f"{frontend_base}/integrations?status=missing_code")
 
     org_id = "org-default"
     if state and "org=" in state:
@@ -70,7 +73,7 @@ def google_oauth_callback(
                 email = profile.get("email")
         except Exception as e:
             logger.error(f"Error exchanging Google OAuth authorization code: {e}")
-            return RedirectResponse(url="http://localhost:3000/integrations?status=oauth_error")
+            return RedirectResponse(url=f"{frontend_base}/integrations?status=oauth_error")
 
     # Save integration record and tokens securely in PostgreSQL
     GoogleWorkspaceService.save_oauth_tokens(
@@ -84,7 +87,7 @@ def google_oauth_callback(
     )
 
     logger.info(f"Successfully saved Google Workspace OAuth credentials for org '{org_id}'")
-    return RedirectResponse(url="http://localhost:3000/integrations?status=connected")
+    return RedirectResponse(url=f"{frontend_base}/integrations?status=connected")
 
 
 @router.get("/status")

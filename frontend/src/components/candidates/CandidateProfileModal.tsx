@@ -39,6 +39,7 @@ export function CandidateProfileModal({
   onTriggerCall: (c: Candidate) => void;
   onStartInterview: (c: Candidate) => void;
 }) {
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ai-hrs.onrender.com';
   const [activeTab, setActiveTab] = useState<'overview' | 'resume' | 'workflow' | 'calls' | 'interviews' | 'timeline'>('overview');
   const [playingCallId, setPlayingCallId] = useState<string | null>(null);
   const [timelineData, setTimelineData] = useState<any>(null);
@@ -49,7 +50,7 @@ export function CandidateProfileModal({
   const fetchTimeline = async () => {
     try {
       setLoadingTimeline(true);
-      const res = await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/steps-timeline`);
+      const res = await fetch(`${BACKEND_URL}/api/candidates/${candidate.id}/workflow/steps-timeline`);
       if (res.ok) {
         const data = await res.json();
         setTimelineData(data);
@@ -69,7 +70,7 @@ export function CandidateProfileModal({
 
   const handleRunNow = async (stepId: string) => {
     try {
-      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/run-now`, {
+      await fetch(`${BACKEND_URL}/api/candidates/${candidate.id}/workflow/run-now`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step_id: stepId })
@@ -82,7 +83,7 @@ export function CandidateProfileModal({
 
   const handleSkip = async (stepId: string) => {
     try {
-      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/skip`, {
+      await fetch(`${BACKEND_URL}/api/candidates/${candidate.id}/workflow/skip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step_id: stepId })
@@ -96,7 +97,7 @@ export function CandidateProfileModal({
   const handleRescheduleSubmit = async (stepId: string) => {
     if (!newScheduleTime) return;
     try {
-      await fetch(`http://localhost:8000/api/candidates/${candidate.id}/workflow/reschedule`, {
+      await fetch(`${BACKEND_URL}/api/candidates/${candidate.id}/workflow/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ step_id: stepId, scheduled_at: newScheduleTime })

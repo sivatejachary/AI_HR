@@ -56,7 +56,8 @@ export const CandidateCodingWorkspace: React.FC<CandidateCodingWorkspaceProps> =
       onRequestHint();
     } else {
       try {
-        const res = await fetch(`http://localhost:8000/api/interviews/${interviewId}/coding/hint`, {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ai-hrs.onrender.com';
+        const res = await fetch(`${backendUrl}/api/interviews/${interviewId}/coding/hint`, {
           method: "POST"
         });
         const data = await res.json();

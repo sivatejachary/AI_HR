@@ -247,7 +247,8 @@ export function InterviewSessionDrawer({
                 if (!session) return;
                 setIsActionLoading(true);
                 try {
-                  await fetch(`http://localhost:8000/api/interviews/${session.id}/questions/skip`, { method: "POST" });
+                  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ai-hrs.onrender.com';
+                  await fetch(`${backendUrl}/api/interviews/${session.id}/questions/skip`, { method: "POST" });
                   const updated = await api.getInterviewSession(session.id);
                   setSession(updated);
                 } catch (err) {

@@ -7,7 +7,7 @@ import { Settings, Save, CheckCircle2 } from 'lucide-react';
 export default function SettingsPage() {
   const hrState = useHRState();
   const [policy, setPolicy] = useState(hrState.companyPolicy);
-  const [elevenLabsKey, setElevenLabsKey] = useState('sk_elevenlabs_live_9a87f65e4d3c2b1a');
+  const [elevenLabsKey, setElevenLabsKey] = useState('');
   const [n8nBaseUrl, setN8nBaseUrl] = useState('https://shivateja123.app.n8n.cloud/webhook/');
   const [webhooks, setWebhooks] = useState({
     candidateIntake: 'https://shivateja123.app.n8n.cloud/webhook/candidate-intake',

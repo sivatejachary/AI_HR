@@ -7,19 +7,19 @@ class Settings(BaseSettings):
     APP_NAME: str = "Recruitment Pro Engine"
     APP_ENV: str = os.getenv("APP_ENV", "development")
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "recruitment_pro_enterprise_secret_key_2026")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "recruitment_pro_secret_key_change_in_prod")
 
     # Single Source of Truth Database Connection
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+psycopg2://hrs_n0h4_user:tWDg43trYePf9cu9Alji634Dt3WL8YZD@dpg-daod0qf40ujc73er3040-a.singapore-postgres.render.com/hrs_n0h4?sslmode=require"
+        "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_hr_db"
     )
 
     @property
     def SQLALCHEMY_DATABASE_URL(self) -> str:
         url = self.DATABASE_URL or os.getenv(
             "DATABASE_URL",
-            "postgresql+psycopg2://hrs_n0h4_user:tWDg43trYePf9cu9Alji634Dt3WL8YZD@dpg-daod0qf40ujc73er3040-a.singapore-postgres.render.com/hrs_n0h4?sslmode=require"
+            "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_hr_db"
         )
         if url.startswith("postgres://"):
             return url.replace("postgres://", "postgresql+psycopg2://", 1)
@@ -35,13 +35,13 @@ class Settings(BaseSettings):
     # n8n Automation Engine URLs
     N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivateja123.app.n8n.cloud")
     N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivateja123.app.n8n.cloud")
-    N8N_INTEGRATION_API_KEY: str = os.getenv("N8N_INTEGRATION_API_KEY", "n8n_live_key_recruitmentpro_2026")
+    N8N_INTEGRATION_API_KEY: str = os.getenv("N8N_INTEGRATION_API_KEY", "")
 
-    # Google Cloud OAuth 2.0 Credentials (Project feisty-legend-450615-n5)
-    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "186843356614-2k28sqllqgf4fo2nk38mspuipnfssl9q.apps.googleusercontent.com")
-    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "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")
+    # Google Cloud OAuth 2.0 Credentials
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "https://ai-hrs.onrender.com/api/v1/integrations/google/callback")
-    GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "feisty-legend-450615-n5")
+    GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "")
 
     # ElevenLabs Voice AI
     ELEVENLABS_API_KEY: Optional[str] = os.getenv("ELEVENLABS_API_KEY")

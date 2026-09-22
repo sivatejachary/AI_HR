@@ -21,7 +21,14 @@ import {
   SkipForward
 } from 'lucide-react';
 
-export function TestInterviewModal({ onClose }: { onClose: () => void }) {
+export function TestInterviewModal({
+  isOpen,
+  onClose
+}: {
+  isOpen?: boolean;
+  onClose: () => void;
+}) {
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ai-hrs.onrender.com';
   const [loading, setLoading] = useState<boolean>(true);
   const [sessionData, setSessionData] = useState<any>(null);
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
@@ -68,7 +75,7 @@ export function TestInterviewModal({ onClose }: { onClose: () => void }) {
   const handleStartCoding = async () => {
     if (!sessionData) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/interviews/${sessionData.interview_id}/coding/start`, {
+      const res = await fetch(`${BACKEND_URL}/api/interviews/${sessionData.interview_id}/coding/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ language: 'python' })
@@ -90,7 +97,7 @@ export function TestInterviewModal({ onClose }: { onClose: () => void }) {
     if (!sessionData) return;
     setScreenShareActive(active);
     try {
-      await fetch(`http://localhost:8000/api/interviews/${sessionData.interview_id}/coding/screen-share`, {
+      await fetch(`${BACKEND_URL}/api/interviews/${sessionData.interview_id}/coding/screen-share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: active ? 'start' : 'stop' })
@@ -112,7 +119,7 @@ export function TestInterviewModal({ onClose }: { onClose: () => void }) {
   const handleSendVisionFrame = async (screenType: string, errorVisible: boolean) => {
     if (!sessionData) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/interviews/${sessionData.interview_id}/coding/observations`, {
+      const res = await fetch(`${BACKEND_URL}/api/interviews/${sessionData.interview_id}/coding/observations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,7 +156,7 @@ export function TestInterviewModal({ onClose }: { onClose: () => void }) {
   const handleSkipQuestion = async () => {
     if (!sessionData) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/interviews/${sessionData.interview_id}/questions/skip`, {
+      const res = await fetch(`${BACKEND_URL}/api/interviews/${sessionData.interview_id}/questions/skip`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -381,7 +388,7 @@ export function TestInterviewModal({ onClose }: { onClose: () => void }) {
                     screenShareActive={screenShareActive}
                     onToggleScreenShare={handleToggleScreenShare}
                     onFinishCoding={async () => {
-                      await fetch(`http://localhost:8000/api/interviews/${sessionData.interview_id}/coding/finish`, { method: "POST" });
+                      await fetch(`${BACKEND_URL}/api/interviews/${sessionData.interview_id}/coding/finish`, { method: "POST" });
                       setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), text: "Candidate finished coding. Transitioned to CODE_REVIEW stage.", role: "system" }]);
                       setCodingActive(false);
                     }}
