@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # n8n Automation Engine URLs
     N8N_PUBLIC_URL: str = os.getenv("N8N_PUBLIC_URL", "https://shivateja123.app.n8n.cloud")
     N8N_INTERNAL_URL: str = os.getenv("N8N_INTERNAL_URL", "https://shivateja123.app.n8n.cloud")
+    N8N_CANDIDATE_INTAKE_WEBHOOK: str = os.getenv("N8N_CANDIDATE_INTAKE_WEBHOOK", "https://shivateja123.app.n8n.cloud/webhook/candidate-intake")
     N8N_INTEGRATION_API_KEY: str = os.getenv("N8N_INTEGRATION_API_KEY", "")
 
     # Google Cloud OAuth 2.0 Credentials
